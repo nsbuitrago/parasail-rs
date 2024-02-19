@@ -1,0 +1,14 @@
+[package]
+name = "parasail-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Nicolas S. Buitrago <nsb5@rice.edu>"]
+description = "Rust bindings for parasail, a SIMD C library for pairwise sequence alignment."
+keywords = ["bioinformatics", "alignment", "parasail", "rust", "ffi"]
+license = "BSD-3-Clause"
+repository = "https://gitlab.com/nsbuitrago/parasail-rs"
+documentation = "https://docs.rs/parasail-rs"
+
+[dependencies]
+libc = "0.2.153"
+libparasail-sys = "0.1.2"
