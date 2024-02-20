@@ -1,4 +1,4 @@
-use parasail_rs::{ScoringMatrix, Aligner};
+use parasail_rs::{ScoringMatrix, Aligner, Profile};
 use std::io;
 
 #[test]
@@ -11,9 +11,12 @@ pub fn test_scoring_matrix() -> Result<(), io::Error> {
 
     let query = b"ACGT";
     let target = b"ACGT";
-    let aligner = Aligner::new(sm, 5, 2);
+    let vector_strategy = String::from("striped");
+    // let aligner = Aligner::new(sm, 5, 2, vector_strategy);
+    let profile = Profile::new(query, false, sm);
+    let aligner = Aligner::with_profile(profile, 5, 2, vector_strategy);
 
-    let result = aligner.global(query, target, "striped");
+    let result = aligner.global_with_profile(target);
     println!("{:?}", result);
 
     let score = result.get_score();
