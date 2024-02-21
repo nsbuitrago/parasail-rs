@@ -19,7 +19,36 @@ Note that parasail-rs depends on libparasail-sys which will either use an alread
 
 ### Examples
 
-For the moment, there are some examples in the doc string of lib.rs. These will be documented further when the crate is published on crates.io
+Basic usage:
+
+ ```rust
+use parasail_rs::{ScoringMatrix, Aligner};
+let matrix = ScoringMatrix::create("ACGT", 1, -1);
+let vector_strategy = "striped".to_string();
+let query = b"ACGT";
+let target = b"ACGTAACGTACA";
+
+let aligner = Aligner::new(matrix, 5, 2, vector_strategy);
+let result = aligner.global(Some(query), target); 
+ ```
+
+Using query profiles:
+
+```rust
+use parasail_rs::{ScoringMatrix, Aligner, Profile};
+let matrix = ScoringMatrix::create("ACGT", 1, -1);
+let vector_strategy = "striped".to_string();
+let query = b"ACGT";
+let ref_1 = b"ACGTAACGTACA";
+let ref_2 = b"TGGCAAGGTAGA";
+
+let use_stats = true;
+let query_profile = Profile::new(query, use_stats, matrix);
+let aligner = Aligner::with_profile(query_profile, 5, 2, vector_strategy);
+
+let result_1 = aligner.global(None, ref_1);
+let result_2 = aligner.global(None, ref_2);
+```
 
 ## Contributing
 
