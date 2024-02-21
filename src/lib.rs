@@ -25,7 +25,7 @@
 //! let target = b"ACGTAACGTACA";
 //!
 //! let aligner = Aligner::new(matrix, 5, 2, vector_strategy);
-//! let result = aligner.global(Some(query), target); 
+//! let result = aligner.global(query, target); 
 //! ```
 //!
 //! ### Using query profile
@@ -41,12 +41,12 @@
 //! let query_profile = Profile::new(query, use_stats, matrix);
 //! let aligner = Aligner::with_profile(query_profile, 5, 2, vector_strategy);
 //!
-//! let result_1 = aligner.global(None, ref_1);
-//! let result_2 = aligner.global(None, ref_2);
+//! let result_1 = aligner.global_with_profile(ref_1);
+//! let result_2 = aligner.global_with_profile(ref_2);
 //!
 
 use libparasail_sys::{
-    parasail_lookup_function, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_nw_scan_profile_sat, parasail_nw_striped_profile_sat, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_matches, parasail_result_get_score, parasail_result_get_similar, parasail_result_is_banded, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_striped, parasail_result_is_sw, parasail_result_t, parasail_sg_scan_profile_sat, parasail_sg_striped_profile_sat, parasail_sw_striped_profile_sat,
+    parasail_function_t, parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_pfunction_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_matches, parasail_result_get_score, parasail_result_get_similar, parasail_result_is_banded, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_striped, parasail_result_is_sw, parasail_result_t,
 };
 
 /// Scoring matrix for sequence alignment.
@@ -218,22 +218,9 @@ impl Drop for Profile {
     }
 }
 
-/// Perform sequence alignment between a query and a target sequence. This is a helper function
-/// used by the Aligner struct, but can also be called directly.
-pub fn align(query: &[u8], target: &[u8], matrix: &ScoringMatrix, gap_open: i32, gap_extend: i32, mode: String, vec_strategy: &String) -> AlignmentResult {
-    let query_len = query.len() as i32;
-    let target_len = target.len() as i32;
-    let fn_name = format!("parasail_{}_{}_sat", mode, vec_strategy);
-    unsafe {
-        let parasail_fn = parasail_lookup_function(fn_name.as_ptr() as *const i8);
-
-        if let Some(parasail_fn) = parasail_fn {
-            let result = parasail_fn(query.as_ptr() as *const i8, query_len, target.as_ptr() as *const i8, target_len, gap_open, gap_extend, matrix.scores);
-            AlignmentResult { result }
-        } else {
-            panic!("Invalid alignment method");
-        }
-    }
+pub enum ParasailFn {
+    WithProfile(parasail_pfunction_t),
+    WithoutProfile(parasail_function_t),
 }
 
 pub enum Aligner {
@@ -254,134 +241,75 @@ impl Aligner {
     /// used by the global, semi-global, and local methods. Alternatively, you can call this
     /// directly and pass a mode string of "nw", "sg", or "sw" for global, semi-global, or local, respectively.
     pub fn align(&self, query: Option<&[u8]>, reference: &[u8], mode: String) -> AlignmentResult {
-        // alignment mode should be one of "nw", "sg", or "sw"
-        match self {
-            Aligner::WithProfile(profile, gap_open, gap_extend, vec_strategy) => {
-                assert!(vec_strategy == "striped" || vec_strategy == "scan");
-                let target_len = reference.len() as i32;
-                
-                unsafe {
-                    match vec_strategy.as_str() {
-                        "striped"=> {
-                            let result = parasail_nw_striped_profile_sat(profile.inner, reference.as_ptr() as *const i8, target_len, *gap_open, *gap_extend);
-                            AlignmentResult { result }
-                        },
-                        "scan" => {
-                            let result = parasail_nw_scan_profile_sat(profile.inner, reference.as_ptr() as *const i8, target_len, *gap_open, *gap_extend);
-                            AlignmentResult { result }
-                        },
-                        _ => {
-                            panic!("Use of query profiles is only supported with striped or scan vector strategies.");
-                        }
-                        
-                    }
-                }
-            },
-            Aligner::WithoutProfile(matrix, gap_open, gap_extend, vec_strategy) => {
-                let query = query.unwrap();
-                align(query, reference, matrix, *gap_open, *gap_extend, mode, vec_strategy)
-            },
-        }
-    }
-
-    /// Perform a global alignment between a query and a target sequence.
-    pub fn global(&self, query: Option<&[u8]>, reference: &[u8]) -> AlignmentResult {
+        let reference_len = reference.len() as i32;
         let result =  match self {
             Aligner::WithProfile(profile, gap_open, gap_extend, vec_strategy) => {
                 assert!(vec_strategy == "striped" || vec_strategy == "scan");
-                let target_len = reference.len() as i32;
-
+                let parasail_fn_name = format!("parasail_{}_{}_profile_sat", mode, vec_strategy);
                 unsafe {
-                    match vec_strategy.as_str() {
-                        "striped"=> {
-                            let result = parasail_nw_striped_profile_sat(profile.inner, reference.as_ptr() as *const i8, target_len, *gap_open, *gap_extend);
-                            AlignmentResult { result }
-                        },
-                        "scan" => {
-                            let result = parasail_nw_scan_profile_sat(profile.inner, reference.as_ptr() as *const i8, target_len, *gap_open, *gap_extend);
-                            AlignmentResult { result }
-                        },
-                        _ => {
-                            panic!("Use of query profiles is only supported with striped or scan vector strategies.");
-                        }
-                        
+                    let parasail_fn = parasail_lookup_pfunction(parasail_fn_name.as_ptr() as *const i8);
+                    if let Some(parasail_fn) = parasail_fn {
+                        let result = parasail_fn(profile.inner, reference.as_ptr() as *const i8, reference_len, *gap_open, *gap_extend);
+                        AlignmentResult { result }
+                    } else {
+                        panic!("Invalid alignment method");
                     }
                 }
             },
             Aligner::WithoutProfile(matrix, gap_open, gap_extend, vec_strategy) => {
                 let mode = "nw".to_string();
+                assert!(query.is_some());
                 let query = query.unwrap();
-                align(query, reference, matrix, *gap_open, *gap_extend, mode, vec_strategy)
+                let parasail_fn_name = format!("parasail_{}_{}_sat", mode, vec_strategy);
+                unsafe {
+                    let parasail_fn = parasail_lookup_function(parasail_fn_name.as_ptr() as *const i8);
+                    if let Some(parasail_fn) = parasail_fn {
+                        let result = parasail_fn(query.as_ptr() as *const i8, query.len() as i32, reference.as_ptr() as *const i8, reference_len, *gap_open, *gap_extend, matrix.scores);
+                        AlignmentResult { result }
+                    } else {
+                        panic!("Invalid alignment method");
+                    }
+                }
             },
         };
 
         result
+    }
+
+    /// Perform a global alignment between a query and a reference sequence.
+    pub fn global(&self, query: &[u8], reference: &[u8]) -> AlignmentResult {
+        let mode = "nw".to_string();
+        self.align(Some(query), reference, mode)
+    }
+
+    /// Perform a global alignment between a query profile and a reference sequence.
+    pub fn global_with_profile(&self, reference: &[u8]) -> AlignmentResult {
+        let mode = "nw".to_string();
+        self.align(None, reference, mode)
     }
 
     /// Perform a semi-global alignment between a query and a target sequence.
-    pub fn semi_global(&self, query: Option<&[u8]>, reference: &[u8]) -> AlignmentResult {
-        let result =  match self {
-            Aligner::WithProfile(profile, gap_open, gap_extend, vec_strategy) => {
-                assert!(vec_strategy == "striped" || vec_strategy == "scan");
-                let target_len = reference.len() as i32;
+    pub fn semi_global(&self, query: &[u8], reference: &[u8]) -> AlignmentResult {
+        let mode = "sg".to_string();
+        self.align(Some(query), reference, mode)
+    }
 
-                unsafe {
-                    match vec_strategy.as_str() {
-                        "striped"=> {
-                            let result = parasail_sg_striped_profile_sat(profile.inner, reference.as_ptr() as *const i8, target_len, *gap_open, *gap_extend);
-                            AlignmentResult { result }
-                        },
-                        "scan" => {
-                            let result = parasail_sg_scan_profile_sat(profile.inner, reference.as_ptr() as *const i8, target_len, *gap_open, *gap_extend);
-                            AlignmentResult { result }
-                        },
-                        _ => {
-                            panic!("Use of query profiles is only supported with striped or scan vector strategies.");
-                        }
-                        
-                    }
-                }
-            },
-            Aligner::WithoutProfile(matrix, gap_open, gap_extend, vec_strategy) => {
-                let mode = "sg".to_string();
-                let query = query.unwrap();
-                align(query, reference, matrix, *gap_open, *gap_extend, mode, vec_strategy)
-            },
-        };
-
-        result
-
+    /// Perform a semi-global alignment between a query profile and a target sequence.
+    pub fn semi_global_with_profile(&self, reference: &[u8]) -> AlignmentResult {
+        let mode = "sg".to_string();
+        self.align(None, reference, mode)
     }
 
     /// Perform a local alignment between a query and a target sequence.
-    pub fn local(&self, query: Option<&[u8]>, reference: &[u8]) -> AlignmentResult {
-        let result =  match self {
-            Aligner::WithProfile(profile, gap_open, gap_extend, vec_strategy) => {
-                assert!(vec_strategy == "striped");
-                let target_len = reference.len() as i32;
+    pub fn local(&self, query: &[u8], reference: &[u8]) -> AlignmentResult {
+        let mode = "sw".to_string();
+        self.align(Some(query), reference, mode)
+    }
 
-                unsafe {
-                    match vec_strategy.as_str() {
-                        "striped"=> {
-                            let result = parasail_sw_striped_profile_sat(profile.inner, reference.as_ptr() as *const i8, target_len, *gap_open, *gap_extend);
-                            AlignmentResult { result }
-                        },
-                        _ => {
-                            panic!("Use of query profiles with Smith-Waterman alignment is only supported with striped vector strategies.");
-                        }
-                        
-                    }
-                }
-            },
-            Aligner::WithoutProfile(matrix, gap_open, gap_extend, vec_strategy) => {
-                let mode = "sw".to_string();
-                let query = query.unwrap();
-                align(query, reference, matrix, *gap_open, *gap_extend, mode, vec_strategy)
-            },
-        };
-
-        result
-
+    /// Perform a local alignment between a query profile and a target sequence.
+    pub fn local_with_profile(&self, reference: &[u8]) -> AlignmentResult {
+        let mode = "sw".to_string();
+        self.align(None, reference, mode)
     }
 }
 

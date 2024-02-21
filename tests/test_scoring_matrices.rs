@@ -16,7 +16,7 @@ pub fn test_scoring_matrix() -> Result<(), io::Error> {
     let profile = Profile::new(query, false, sm);
     let aligner = Aligner::with_profile(profile, 5, 2, vector_strategy);
 
-    let result = aligner.global(None, target);
+    let result = aligner.global_with_profile(target);
     println!("{:?}", result);
 
     let score = result.get_score();
