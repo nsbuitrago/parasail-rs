@@ -1,6 +1,6 @@
 //! # Introduction
 //!
-//! This crate provides safe Rust bindings to the [Parasail](https://github.com/jeffdaily/parasail), a SIMD C library for //! pairwise sequence alignments.
+//! This crate provides safe Rust bindings to the [Parasail](https://github.com/jeffdaily/parasail), a SIMD C library for pairwise sequence alignments.
 //!
 //! Note that this crate is under development and the bindings may not be complete. For unsafe
 //! bindings, see the [libparasail-sys](https://crates.io/crates/libparasail-sys) crate.
@@ -45,6 +45,8 @@
 //! let result_2 = aligner.global_with_profile(ref_2);
 //!
 
+// use std::marker::PhantomData;
+
 use libparasail_sys::{
     parasail_function_t, parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_pfunction_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_matches, parasail_result_get_score, parasail_result_get_similar, parasail_result_is_banded, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_striped, parasail_result_is_sw, parasail_result_t,
 };
@@ -55,21 +57,9 @@ use libparasail_sys::{
 /// - a pre-defined matrix (such as blosum62)
 /// - a file containing a scoring matrix (see from_file for format details)
 /// - a PSSM (position-specific scoring matrix)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ScoringMatrix {
     pub scores: *mut parasail_matrix_t,
-}
-
-/// Default scoring matrix is a simple match/mismatch (+1/-1) matrix for DNA sequences.
-/// In practice this is never really used, but it's here to allow for default values
-/// in the Aligner struct
-impl Default for ScoringMatrix {
-    fn default() -> Self {
-        unsafe {
-            let scores = parasail_matrix_create(b"ACGT".as_ptr() as *const i8, 1, -1);
-            ScoringMatrix { scores }
-        }
-    }
 }
 
 impl ScoringMatrix {
@@ -171,6 +161,18 @@ impl ScoringMatrix {
     }
 }
 
+/// Default scoring matrix is a simple match/mismatch (+1/-1) matrix for DNA sequences.
+/// In practice this is never really used, but it's here to allow for default values
+/// in the Aligner struct
+impl Default for ScoringMatrix {
+    fn default() -> Self {
+        unsafe {
+            let scores = parasail_matrix_create(b"ACGT".as_ptr() as *const i8, 1, -1);
+            ScoringMatrix { scores }
+        }
+    }
+}
+
 /// Free the memory used by the scoring matrix when it goes out of scope.
 impl Drop for ScoringMatrix {
     fn drop(&mut self) {
@@ -218,23 +220,77 @@ impl Drop for Profile {
     }
 }
 
-pub enum ParasailFn {
-    WithProfile(parasail_pfunction_t),
-    WithoutProfile(parasail_function_t),
+#[derive(Debug)]
+pub struct Aligner {
+    pub matrix: Option<ScoringMatrix>,
+    pub gap_open: i32,
+    pub gap_extend: i32,
+    pub vec_strategy: String,
+    pub query_profile: Option<Profile>,
+    pub allow_gaps: Option<Vec<String>>,
 }
 
-pub enum Aligner {
-    WithProfile(Profile, i32, i32, String),
-    WithoutProfile(ScoringMatrix, i32, i32, String),
+impl Default for Aligner {
+    fn default() -> Self {
+        Aligner {
+            matrix: Some(ScoringMatrix::default()),
+            gap_open: 5,
+            gap_extend: 2,
+            vec_strategy: String::from("striped"),
+            query_profile: None,
+            allow_gaps: None,
+        }
+    }
 }
 
 impl Aligner {
-    pub fn new(matrix: ScoringMatrix, gap_open: i32, gap_extend: i32, vec_strategy: String) -> Aligner {
-        Aligner::WithoutProfile(matrix, gap_open, gap_extend, vec_strategy)
+    /// Create a new default aligner
+    pub fn new() -> Aligner {
+        Aligner {
+            matrix: Some(ScoringMatrix::default()),
+            gap_open: 5,
+            gap_extend: 2,
+            vec_strategy: String::from("striped"),
+            query_profile: None,
+            allow_gaps: None,
+        }
     }
 
-    pub fn with_profile(query_profile: Profile, gap_open: i32, gap_extend: i32, vec_strategy: String) -> Aligner {
-        Aligner::WithProfile(query_profile, gap_open, gap_extend, vec_strategy)
+    /// Set the scoring matrix
+    pub fn scoring_matrix(&mut self, matrix: ScoringMatrix) -> &mut Aligner {
+        self.matrix = Some(matrix);
+        self
+    }
+
+    /// Set the gap open penalty for the aligner
+    pub fn gap_open_penalty(&mut self, gap_open: i32) -> &mut Aligner {
+        self.gap_open = gap_open;
+        self
+    }
+
+    /// Set the gap extend penalty
+    pub fn gap_extend_penalty(&mut self, gap_extend: i32) -> &mut Aligner {
+        self.gap_extend = gap_extend;
+        self
+    }
+
+    /// Set the vector strategy
+    pub fn vector_strategy(&mut self, vec_strategy: String) -> &mut Aligner {
+        self.vec_strategy = vec_strategy;
+        self
+    }
+
+    /// Set the query profile
+    pub fn query_profile(&mut self, query_profile: Profile) -> &mut Aligner {
+        self.query_profile = Some(query_profile);
+        self
+    }
+
+    /// Set allowed gaps for semi-global alignment. By default, gaps are allwed at the beginning
+    /// and end of the query and reference sequences.
+    pub fn allow_gaps(&mut self, allow_gaps: Vec<String>) -> &mut Aligner {
+        self.allow_gaps = Some(allow_gaps);
+        self
     }
 
     /// Perform alignment between a query and a target sequence. This is a helper method that is
@@ -242,75 +298,77 @@ impl Aligner {
     /// directly and pass a mode string of "nw", "sg", or "sw" for global, semi-global, or local, respectively.
     pub fn align(&self, query: Option<&[u8]>, reference: &[u8], mode: String) -> AlignmentResult {
         let reference_len = reference.len() as i32;
-        let result =  match self {
-            Aligner::WithProfile(profile, gap_open, gap_extend, vec_strategy) => {
-                assert!(vec_strategy == "striped" || vec_strategy == "scan");
-                let parasail_fn_name = format!("parasail_{}_{}_profile_sat", mode, vec_strategy);
-                unsafe {
-                    let parasail_fn = parasail_lookup_pfunction(parasail_fn_name.as_ptr() as *const i8);
-                    if let Some(parasail_fn) = parasail_fn {
-                        let result = parasail_fn(profile.inner, reference.as_ptr() as *const i8, reference_len, *gap_open, *gap_extend);
-                        AlignmentResult { result }
-                    } else {
-                        panic!("Invalid alignment method");
-                    }
-                }
-            },
-            Aligner::WithoutProfile(matrix, gap_open, gap_extend, vec_strategy) => {
-                let mode = "nw".to_string();
-                assert!(query.is_some());
-                let query = query.unwrap();
-                let parasail_fn_name = format!("parasail_{}_{}_sat", mode, vec_strategy);
-                unsafe {
-                    let parasail_fn = parasail_lookup_function(parasail_fn_name.as_ptr() as *const i8);
-                    if let Some(parasail_fn) = parasail_fn {
-                        let result = parasail_fn(query.as_ptr() as *const i8, query.len() as i32, reference.as_ptr() as *const i8, reference_len, *gap_open, *gap_extend, matrix.scores);
-                        AlignmentResult { result }
-                    } else {
-                        panic!("Invalid alignment method");
-                    }
-                }
-            },
-        };
 
-        result
+        let mut sg_gaps_fn_part = String::new();
+        if mode == "sg" {
+            if self.allow_gaps.is_some() {
+                sg_gaps_fn_part = format!("_{}", self.allow_gaps.as_ref().unwrap().join("_"));
+            }
+        }
+
+        if self.query_profile.is_some() {
+            // use profiles
+            // make sure this is only used with striped or scan vector strategies
+            assert!(self.vec_strategy == "striped" || self.vec_strategy == "scan");
+            let parasail_fn_name = format!("parasail_{}{}_{}_profile_sat", mode, sg_gaps_fn_part, self.vec_strategy);
+
+            unsafe {
+                let parasail_fn = parasail_lookup_pfunction(parasail_fn_name.as_ptr() as *const i8);
+                if let Some(parasail_fn) = parasail_fn {
+                    let result = parasail_fn(self.query_profile.as_ref().unwrap().inner, reference.as_ptr() as *const i8, reference_len, self.gap_open, self.gap_extend);
+                    AlignmentResult { result }
+                } else {
+                    panic!("Invalid alignment method");
+                }
+            }
+
+        } else {
+            // use scoring matrix
+            assert!(query.is_some());
+            let query = query.unwrap();
+            let parasail_fn_name = format!("parasail_{}_{}_profile_sat", mode, self.vec_strategy);
+
+            unsafe {
+                let parasail_fn = parasail_lookup_function(parasail_fn_name.as_ptr() as *const i8);
+                if let Some(parasail_fn) = parasail_fn {
+                    let result = parasail_fn(query.as_ptr() as *const i8, query.len() as i32, reference.as_ptr() as *const i8, reference_len, self.gap_open, self.gap_extend, self.matrix.as_ref().unwrap().scores);
+                    AlignmentResult { result }
+                } else {
+                    panic!("Invalid alignment method");
+                }
+            }
+        }
+
     }
 
-    /// Perform a global alignment between a query and a reference sequence.
     pub fn global(&self, query: &[u8], reference: &[u8]) -> AlignmentResult {
-        let mode = "nw".to_string();
-        self.align(Some(query), reference, mode)
+        self.align(Some(query), reference, String::from("nw"))
     }
 
-    /// Perform a global alignment between a query profile and a reference sequence.
     pub fn global_with_profile(&self, reference: &[u8]) -> AlignmentResult {
-        let mode = "nw".to_string();
-        self.align(None, reference, mode)
+        self.align(None, reference, String::from("nw"))
     }
 
-    /// Perform a semi-global alignment between a query and a target sequence.
     pub fn semi_global(&self, query: &[u8], reference: &[u8]) -> AlignmentResult {
-        let mode = "sg".to_string();
-        self.align(Some(query), reference, mode)
+        self.align(Some(query), reference, String::from("sg"))
     }
 
-    /// Perform a semi-global alignment between a query profile and a target sequence.
     pub fn semi_global_with_profile(&self, reference: &[u8]) -> AlignmentResult {
-        let mode = "sg".to_string();
-        self.align(None, reference, mode)
+        self.align(None, reference, String::from("sg"))
     }
 
-    /// Perform a local alignment between a query and a target sequence.
     pub fn local(&self, query: &[u8], reference: &[u8]) -> AlignmentResult {
-        let mode = "sw".to_string();
-        self.align(Some(query), reference, mode)
+        self.align(Some(query), reference, String::from("sw"))
     }
 
-    /// Perform a local alignment between a query profile and a target sequence.
     pub fn local_with_profile(&self, reference: &[u8]) -> AlignmentResult {
-        let mode = "sw".to_string();
-        self.align(None, reference, mode)
+        self.align(None, reference, String::from("sw"))
     }
+}
+
+pub enum ParasailFn {
+    WithProfile(parasail_pfunction_t),
+    WithoutProfile(parasail_function_t),
 }
 
 /// Results of a sequence alignment.
@@ -371,7 +429,7 @@ impl AlignmentResult {
         }
     }
 
-    /// Check fi the alignment mode is local.
+    /// Check if the alignment mode is local.
     pub fn is_local(&self) -> bool {
         unsafe {
             parasail_result_is_sw(self.result) == 1
