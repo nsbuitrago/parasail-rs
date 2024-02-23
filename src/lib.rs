@@ -1,10 +1,64 @@
-use libparasail_sys::{parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_get_score, parasail_result_t};
+//! # Introduction
+//!
+//! This crate provides safe Rust bindings to the [Parasail](https://github.com/jeffdaily/parasail), a SIMD C library for pairwise sequence alignments.
+//!
+//! Note that this crate is under development and the bindings may not be complete. For unsafe
+//! bindings, see the [libparasail-sys](https://crates.io/crates/libparasail-sys) crate.
+//!
+//! # Usage
+//!
+//! Add `parasail-rs` to your `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! parasail-rs = "0.1"
+//! ```
+//!
+//! ## Examples
+//! 
+//! ### Basic usage
+//! ```rust,no_run
+//! use parasail_rs::{Aligner};
+//!
+//! let query = b"ACGT";
+//! let reference = b"ACGT";
+//! let aligner = Aligner::new().build();
+
+//! aligner.global(query, reference);
+//! ```
+//!
+//! ### Using query profile
+//! ```rust,no_run
+//! use parasail_rs::{Matrix, Aligner, Profile};
+//!
+//! let query = b"ACGT";
+//! let ref_1 = b"ACGTAACGTACA";
+//! let ref_2 = b"TGGCAAGGTAGA";
+//!
+//! let use_stats = true;
+//! let query_profile = Profile::new(query, use_stats, Matrix::default());
+//! let aligner = Aligner::new()
+//!     .profile(query_profile, 5, 2, "striped")
+//!     .build();
+//!
+//! let result_1 = aligner.global_with_profile(ref_1);
+//! let result_2 = aligner.global_with_profile(ref_2);
+//!
+
+use libparasail_sys::{
+    parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_matches, parasail_result_get_score, parasail_result_get_similar, parasail_result_is_banded, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_striped, parasail_result_is_sw, parasail_result_t
+};
 
 use std::ffi::CString;
 use std::ops::Deref;
 use std::rc::Rc;
 
-/// Scoring matrix for sequence alignment
+/// Substitution matrix for sequence alignment.
+/// Matrices can be created from:
+/// - an alphabet and match/mismatch scores
+/// - a pre-defined matrix (such as blosum62)
+/// - a file containing a substitution matrix (see from_file for format details)
+/// - a PSSM (position-specific scoring matrix)
 #[derive(Debug, Clone)]
 pub struct Matrix {
     inner: *const parasail_matrix_t
@@ -408,6 +462,99 @@ impl AlignResult {
     /// Get alignment score.
     pub fn get_score(&self) -> i32 {
         unsafe { parasail_result_get_score(self.inner) }
+    }
+
+    pub fn get_end_query(&self) -> i32 {
+        unsafe {
+            parasail_result_get_end_query(self.inner)
+        }
+    }
+
+    pub fn get_end_ref(&self) -> i32 {
+        unsafe {
+            parasail_result_get_end_ref(self.inner)
+        }
+    }
+
+    pub fn get_matches(&self) -> i32 {
+        unsafe {
+            parasail_result_get_matches(self.inner)
+        }
+    }
+
+    pub fn get_similar(&self) -> i32 {
+        unsafe {
+            parasail_result_get_similar(self.inner)
+        }
+    }
+
+    pub fn get_length(&self) -> i32 {
+        unsafe {
+            parasail_result_get_length(self.inner)
+        }
+    }
+
+    /// Check if the alignment mode is global.
+    pub fn is_global(&self) -> bool {
+        unsafe {
+            parasail_result_is_nw(self.inner) == 1
+        }
+    }
+
+    /// Check if the alignment mode is semi-global.
+    pub fn is_semi_global(&self) -> bool {
+        unsafe {
+            parasail_result_is_sg(self.inner) == 1
+        }
+    }
+
+    /// Check if the alignment mode is local.
+    pub fn is_local(&self) -> bool {
+        unsafe {
+            parasail_result_is_sw(self.inner) == 1
+        }
+    }
+
+    pub fn is_saturated(&self) -> bool {
+        unsafe {
+            parasail_result_is_saturated(self.inner) == 1
+        }
+    }
+
+    pub fn is_banded(&self) -> bool {
+        unsafe {
+            parasail_result_is_banded(self.inner) == 1
+        }
+    }
+
+    /// Check if vector strategy is scan.
+    pub fn is_scan(&self) -> bool {
+        unsafe {
+            parasail_result_is_scan(self.inner) == 1
+        }
+    }
+
+    /// Check if vector strategy is striped.
+    pub fn is_striped(&self) -> bool {
+        unsafe {
+            parasail_result_is_striped(self.inner) == 1
+        }
+    }
+
+    /// Check if vector strategy is diagonal.
+    pub fn is_diag(&self) -> bool {
+        unsafe {
+            parasail_result_is_diag(self.inner) == 1
+        }
+    }
+}
+
+#[doc(hidden)]
+impl Drop for AlignResult {
+    fn drop(&mut self) {
+        unsafe {
+            parasail_result_free(self.inner);
+        }
     }
 }
 
