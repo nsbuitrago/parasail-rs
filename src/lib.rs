@@ -197,8 +197,10 @@ impl Deref for Profile {
 #[doc(hidden)]
 impl Drop for Profile {
     fn drop(&mut self) {
-        unsafe {
-            parasail_profile_free(self.inner)
+        if !self.inner.is_null() {
+            unsafe {
+                parasail_profile_free(self.inner)
+            }
         }
     }
 }
