@@ -1,6 +1,6 @@
 # parasail-rs
 
-This crate provides safe Rust bindings to [parasail](), a vectorized pairwise sequence alignment C library.
+This crate provides safe Rust bindings and a wrapper to [parasail](), a SIMD pairwise sequence alignment C library.
 
 ## Usage
 
@@ -29,7 +29,7 @@ let query = b"ACGT";
 let target = b"ACGTAACGTACA";
 
 let aligner = Aligner::new(matrix, 5, 2, vector_strategy);
-let result = aligner.global(Some(query), target); 
+let result = aligner.global(query, target); 
  ```
 
 Using query profiles:
@@ -46,13 +46,21 @@ let use_stats = true;
 let query_profile = Profile::new(query, use_stats, matrix);
 let aligner = Aligner::with_profile(query_profile, 5, 2, vector_strategy);
 
-let result_1 = aligner.global(None, ref_1);
-let result_2 = aligner.global(None, ref_2);
+let result_1 = aligner.global_with_profile(ref_1);
+let result_2 = aligner.global_with_profile(ref_2);
 ```
 
 ## Contributing
 
-Contributions are more than welcome. For other feedback or suggestions, please open an issue or send an email to nsb5 [at] rice.edu.
+Contributions are more than welcome. Please open an issue or send an email to nsb5 [at] rice.edu for any feedback or questions.
+
+## Citations
+
+If needed, please cite the following paper:
+
+[Daily, Jeff. (2016). Parasail: SIMD C library for global, semi-global, and local pairwise sequence alignments. BMC Bioinformatics, 17(1), 1-11. doi:10.1186/s12859-016-0930-z](https://doi.org/10.1186/s12859-016-0930-z)
+
+The Parasail C library was developed by Jeff Daily.
 
 ## License
 

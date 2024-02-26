@@ -1,10 +1,27 @@
 # Change Log
 
+## 0.2.0 - 2024.02.25
+
+- Use new builder pattern for aligner.
+- Better Matrix and Profile handling with Rc.
+- Methods for AlignResults struct.
+
+## 0.1.0 - 2024.02.21
+
+Initial release.
+
+- Implements global, semi-global, and local alignment.
+- Supports query profiles or one-off alignments.
+
+--
+
 TODO:
-- [ ] global alignment stats functions
+- [x] using new builder pattern for Aligner
+- [ ] global, local, and semi_global alignment stats functions
+- [x] implement different semi_global variants
 - [x] local alignment implementation
 - [x] semi-global alignment implementation
 - [ ] tests for scoring matrices and alignments
 - [x] query profiles and corresponding functions
-- [ ] Work on adding safety to bindings
+- [x] Work on adding safety to bindings
 
