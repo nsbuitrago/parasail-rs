@@ -11,7 +11,7 @@ Add the latest version of `parasail-rs` to your `Cargo.toml` by running `cargo a
 ```toml
 
 [dependencies]
-parasail-rs = "0.1.0"
+parasail-rs = "0.2.0"
 
 ```
 
@@ -19,32 +19,34 @@ Note that parasail-rs depends on libparasail-sys which will either use an alread
 
 ### Examples
 
-Basic usage:
+#### Basic usage:
 
- ```rust
-use parasail_rs::{ScoringMatrix, Aligner};
-let matrix = ScoringMatrix::create("ACGT", 1, -1);
-let vector_strategy = "striped".to_string();
-let query = b"ACGT";
-let target = b"ACGTAACGTACA";
-
-let aligner = Aligner::new(matrix, 5, 2, vector_strategy);
-let result = aligner.global(query, target); 
- ```
-
-Using query profiles:
+For one-off alignments:
 
 ```rust
-use parasail_rs::{ScoringMatrix, Aligner, Profile};
-let matrix = ScoringMatrix::create("ACGT", 1, -1);
-let vector_strategy = "striped".to_string();
+use parasail_rs::{Aligner};
+
+let query = b"ACGT";
+let reference = b"ACGT";
+let aligner = Aligner::new().build();
+
+aligner.global(query, reference);
+```
+
+Using query profile:
+
+```rust
+use parasail_rs::{Matrix, Aligner, Profile};
+
 let query = b"ACGT";
 let ref_1 = b"ACGTAACGTACA";
 let ref_2 = b"TGGCAAGGTAGA";
 
 let use_stats = true;
-let query_profile = Profile::new(query, use_stats, matrix);
-let aligner = Aligner::with_profile(query_profile, 5, 2, vector_strategy);
+let query_profile = Profile::new(query, use_stats, Matrix::default());
+let aligner = Aligner::new()
+ .profile(query_profile, 5, 2, "striped")
+ .build();
 
 let result_1 = aligner.global_with_profile(ref_1);
 let result_2 = aligner.global_with_profile(ref_2);
