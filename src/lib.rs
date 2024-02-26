@@ -36,9 +36,9 @@
 //! let ref_2 = b"TGGCAAGGTAGA";
 //!
 //! let use_stats = true;
-//! let query_profile = Profile::new(query, use_stats, Matrix::default());
+//! let query_profile = Profile::new(query, use_stats, &Matrix::default());
 //! let aligner = Aligner::new()
-//!     .profile(query_profile, 5, 2, "striped")
+//!     .profile(query_profile) 
 //!     .build();
 //!
 //! let result_1 = aligner.global_with_profile(ref_1);
