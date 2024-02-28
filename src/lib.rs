@@ -11,7 +11,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! parasail-rs = "0.1"
+//! parasail-rs = "0.2.3"
 //! ```
 //!
 //! ## Examples
@@ -46,7 +46,7 @@
 //!
 
 use libparasail_sys::{
-    parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_matches, parasail_result_get_score, parasail_result_get_similar, parasail_result_is_banded, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_striped, parasail_result_is_sw, parasail_result_t
+    parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_matches, parasail_result_get_score, parasail_result_get_similar, parasail_result_is_banded, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_stats, parasail_result_is_striped, parasail_result_is_sw, parasail_result_t 
 };
 
 use std::ffi::CString;
@@ -94,7 +94,6 @@ impl Matrix {
     /// Files should contain either square or position-specific scoring matrices.
     /// Examples are direcly from the [Parasail C lib docs](https://github.com/jeffdaily/parasail?tab=readme-ov-file#substitution-matrices).
     /// Square:
-    /// ```text
     ///#
     // # Any line starting with '#' is a comment.
     // #
@@ -122,9 +121,8 @@ impl Matrix {
     // N  -2  -2  -2  -2  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -2  -5
     // U  -4   5  -4  -4  -4   1  -4   1   1  -4  -1  -4  -1  -1  -2   5  -5
     // *  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5
-    /// ```
+    /// 
     /// PSSM:
-    /// ```text
     ///#
     // # Any line starting with '#' is a comment.
     // #
@@ -142,7 +140,7 @@ impl Matrix {
     // K  -2   1   1  -2  -1   3  -5  -6  -5  -5   2   2   0   1   1   1   2  -4  -4   0
     // P  -2   0  -4   0  -2  -4  -5  -5   5  -5  -3  -1   1   1  -3   2  -4  -4   1   3
     // I  -5  -7   7   1   0  -2   3  -5  -6  -5   0  -4  -4  -1  -6   3  -6  -6  -6  -6
-    // ```
+    //
     pub fn from_file(file: &str) -> Self {
         let file = CString::new(file).unwrap();
         unsafe {
@@ -277,6 +275,7 @@ pub struct AlignerBuilder {
     profile: Arc<Profile>,
     allow_gaps: Vec<String>,
     vec_strategy: String, 
+    use_stats: bool,
 }
 
 impl Default for AlignerBuilder {
@@ -288,6 +287,7 @@ impl Default for AlignerBuilder {
             profile: Profile::default().into(), 
             allow_gaps: Vec::default(),
             vec_strategy: String::from("striped"),
+            use_stats: false,
         }
     }
 }
@@ -332,6 +332,12 @@ impl AlignerBuilder {
         self
     }
 
+    /// Set whether to use statistics for alignment. By default, statistics are not used.
+    pub fn use_stats(&mut self, use_stats: bool) -> &mut Self {
+        self.use_stats = use_stats;
+        self
+    }
+
     /// build aligner
     pub fn build(&mut self) -> Aligner {
         Aligner {
@@ -341,6 +347,7 @@ impl AlignerBuilder {
             profile: Arc::clone(&self.profile),
             allow_gaps: self.allow_gaps.clone(),
             vec_strategy: self.vec_strategy.clone(),
+            use_stats: self.use_stats,
         }
     }
 }
@@ -353,6 +360,7 @@ pub struct Aligner {
     profile: Arc<Profile>,
     allow_gaps: Vec<String>,
     vec_strategy: String,
+    use_stats: bool,
 }
 
 impl Aligner {
@@ -380,12 +388,21 @@ impl Aligner {
             parasail_fn_vec = format!("_{}", self.vec_strategy);
         }
 
+        let use_stats: &str;
+        if self.use_stats {
+            use_stats = "_stats";
+        } else {
+            use_stats = "";
+        }
+
         if self.profile.is_null() {
             // use query
             assert!(query.is_some(), "Query sequence is required for alignment without a profile.");
             let query = query.unwrap();
             let query_len = query.len() as i32;
-            let parasail_fn_name = CString::new(format!("parasail_{}{}{}_sat", mode, sg_gaps_fn_part, parasail_fn_vec))
+
+
+            let parasail_fn_name = CString::new(format!("parasail_{}{}{}{}_sat", mode, sg_gaps_fn_part, use_stats, parasail_fn_vec))
                 .unwrap_or_else(|e| panic!("CString::new failed: {}", e));
 
             unsafe {
@@ -411,7 +428,8 @@ impl Aligner {
             assert!(self.vec_strategy == "striped" || self.vec_strategy == "scan",
             "Vectorization strategy must be striped or scan for alignment with a profile.");
 
-            let parasail_fn_name = CString::new(format!("parasail_{}{}{}_profile_sat", mode, sg_gaps_fn_part, parasail_fn_vec))
+
+            let parasail_fn_name = CString::new(format!("parasail_{}{}{}{}_profile_sat", mode, sg_gaps_fn_part, use_stats, parasail_fn_vec))
                 .unwrap_or_else(|e| panic!("CString::new failed: {}", e));
 
             unsafe {
@@ -495,6 +513,7 @@ impl AlignResult {
         }
     }
 
+    /// 
     pub fn get_similar(&self) -> i32 {
         unsafe {
             parasail_result_get_similar(self.inner)
@@ -504,28 +523,33 @@ impl AlignResult {
     /// Get alignment length.
     pub fn get_length(&self) -> i32 {
         unsafe {
-            parasail_result_get_length(self.inner)
+            if self.use_stats() {
+                parasail_result_get_length(self.inner)
+            } else {
+                panic!("Alignment length is not available without stats.");
+            }
         }
     }
 
     /// Check if the alignment mode is global.
     pub fn is_global(&self) -> bool {
         unsafe {
-            parasail_result_is_nw(self.inner) == 1
+            parasail_result_is_nw(self.inner) != 0
         }
     }
 
     /// Check if the alignment mode is semi-global.
     pub fn is_semi_global(&self) -> bool {
         unsafe {
-            parasail_result_is_sg(self.inner) == 1
+            parasail_result_is_sg(self.inner) != 0
         }
     }
 
     /// Check if the alignment mode is local.
     pub fn is_local(&self) -> bool {
+        
         unsafe {
-            parasail_result_is_sw(self.inner) == 1
+            parasail_result_is_sw(self.inner) != 0
         }
     }
 
@@ -533,35 +557,41 @@ impl AlignResult {
     /// falling back to 16-bit if necessary).
     pub fn is_saturated(&self) -> bool {
         unsafe {
-            parasail_result_is_saturated(self.inner) == 1
+            parasail_result_is_saturated(self.inner) != 0
         }
     }
 
     /// Check if banded alignment is used. 
     pub fn is_banded(&self) -> bool {
         unsafe {
-            parasail_result_is_banded(self.inner) == 1
+            parasail_result_is_banded(self.inner) != 0
         }
     }
 
     /// Check if vector strategy is scan.
     pub fn is_scan(&self) -> bool {
         unsafe {
-            parasail_result_is_scan(self.inner) == 1
+            parasail_result_is_scan(self.inner) != 0
         }
     }
 
     /// Check if vector strategy is striped.
     pub fn is_striped(&self) -> bool {
         unsafe {
-            parasail_result_is_striped(self.inner) == 1
+            parasail_result_is_striped(self.inner) != 0
         }
     }
 
     /// Check if vector strategy is diagonal.
     pub fn is_diag(&self) -> bool {
         unsafe {
-            parasail_result_is_diag(self.inner) == 1
+            parasail_result_is_diag(self.inner) != 0
+        }
+    }
+
+    pub fn use_stats(&self) -> bool {
+        unsafe {
+            parasail_result_is_stats(self.inner) != 0
         }
     }
 }
