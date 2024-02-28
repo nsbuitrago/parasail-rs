@@ -1,5 +1,9 @@
 # Change Log
 
+## 0.2.1 - 2024.02.28
+
+- Use Arc for profile and matrix instead of Rc for thread safety
+
 ## 0.2.0 - 2024.02.25
 
 - Use new builder pattern for aligner.

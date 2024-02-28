@@ -51,7 +51,7 @@ use libparasail_sys::{
 
 use std::ffi::CString;
 use std::ops::Deref;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Substitution matrix for sequence alignment.
 /// Matrices can be created from:
@@ -261,10 +261,10 @@ impl Drop for Profile {
 
 // Aligner builder
 pub struct AlignerBuilder {
-    matrix: Rc<Matrix>,
+    matrix: Arc<Matrix>,
     gap_open: i32,
     gap_extend: i32,
-    profile: Rc<Profile>,
+    profile: Arc<Profile>,
     allow_gaps: Vec<String>,
     vec_strategy: String, 
 }
@@ -285,7 +285,7 @@ impl Default for AlignerBuilder {
 impl AlignerBuilder {
     /// Set scoring matrix.
     pub fn matrix(&mut self, matrix: Matrix) -> &mut Self {
-        self.matrix = Rc::new(matrix);
+        self.matrix = Arc::new(matrix);
         self
     }
 
@@ -303,7 +303,7 @@ impl AlignerBuilder {
 
     /// Set query profile.
     pub fn profile(&mut self, profile: Profile) -> &mut Self {
-        self.profile = Rc::new(profile);
+        self.profile = Arc::new(profile);
         self
     }
 
@@ -325,10 +325,10 @@ impl AlignerBuilder {
     /// build aligner
     pub fn build(&mut self) -> Aligner {
         Aligner {
-            matrix: Rc::clone(&self.matrix),
+            matrix: Arc::clone(&self.matrix),
             gap_open: self.gap_open,
             gap_extend: self.gap_extend,
-            profile: Rc::clone(&self.profile),
+            profile: Arc::clone(&self.profile),
             allow_gaps: self.allow_gaps.clone(),
             vec_strategy: self.vec_strategy.clone(),
         }
@@ -337,10 +337,10 @@ impl AlignerBuilder {
 
 /// Aligner struct for sequence alignment
 pub struct Aligner {
-    matrix: Rc<Matrix>,
+    matrix: Arc<Matrix>,
     gap_open: i32,
     gap_extend: i32,
-    profile: Rc<Profile>,
+    profile: Arc<Profile>,
     allow_gaps: Vec<String>,
     vec_strategy: String,
 }
@@ -464,18 +464,21 @@ impl AlignResult {
         unsafe { parasail_result_get_score(self.inner) }
     }
 
+    /// Get end position of query sequence.
     pub fn get_end_query(&self) -> i32 {
         unsafe {
             parasail_result_get_end_query(self.inner)
         }
     }
 
+    /// Get end position of the reference sequence.
     pub fn get_end_ref(&self) -> i32 {
         unsafe {
             parasail_result_get_end_ref(self.inner)
         }
     }
 
+    /// Get number of matches in the alignment.
     pub fn get_matches(&self) -> i32 {
         unsafe {
             parasail_result_get_matches(self.inner)
@@ -488,6 +491,7 @@ impl AlignResult {
         }
     }
 
+    /// Get alignment length.
     pub fn get_length(&self) -> i32 {
         unsafe {
             parasail_result_get_length(self.inner)
@@ -515,12 +519,15 @@ impl AlignResult {
         }
     }
 
+    /// Check if the solution width is saturated (i.e., using 8-bit solution width first and
+    /// falling back to 16-bit if necessary).
     pub fn is_saturated(&self) -> bool {
         unsafe {
             parasail_result_is_saturated(self.inner) == 1
         }
     }
 
+    /// Check if banded alignment is used. 
     pub fn is_banded(&self) -> bool {
         unsafe {
             parasail_result_is_banded(self.inner) == 1
