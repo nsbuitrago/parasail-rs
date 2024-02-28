@@ -205,6 +205,11 @@ impl Drop for Matrix {
     }
 }
 
+#[doc(hidden)]
+unsafe impl Send for Matrix {}
+#[doc(hidden)]
+unsafe impl Sync for Matrix {}
+
 // Query profile for sequence alignment
 pub struct Profile {
     inner: *mut parasail_profile_t,
@@ -258,6 +263,11 @@ impl Drop for Profile {
         }
     }
 }
+
+#[doc(hidden)]
+unsafe impl Send for Profile {}
+#[doc(hidden)]
+unsafe impl Sync for Profile {}
 
 // Aligner builder
 pub struct AlignerBuilder {

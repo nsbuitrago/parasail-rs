@@ -1,4 +1,5 @@
 use parasail_rs::{Matrix, Profile, Aligner};
+use std::thread;
 
 #[test]
 pub fn test_default_matrix_construction() {
@@ -26,4 +27,24 @@ pub fn test_global_alignment() {
 
     let score = result.get_score();
     assert_eq!(score, query.len() as i32);
+}
+
+#[test]
+pub fn test_multithread_alignment() {
+    let query = b"ACGT";
+    let refs = vec![b"ACGT", b"ACGT"];
+    let matrix = Matrix::default();
+    let profile = Profile::new(query, false, &matrix);
+
+    let aligner = Aligner::new()
+        .profile(profile)
+        .build();
+    
+    thread::spawn(move || {
+        for reference in refs {
+            let result = &aligner.global_with_profile(reference);
+            let score = result.get_score();
+            assert_eq!(score, query.len() as i32);
+        }
+    }).join().unwrap();
 }
