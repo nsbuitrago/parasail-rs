@@ -1,6 +1,6 @@
 # parasail-rs
 
-This crate provides safe Rust bindings and a wrapper to [parasail](), a SIMD pairwise sequence alignment C library.
+This crate provides safe Rust bindings and a wrapper to [parasail](), a SIMD pairwise sequence alignment C library. Note that this crate is still under development and is unstable.
 
 ## Usage
 

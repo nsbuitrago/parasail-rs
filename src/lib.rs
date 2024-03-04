@@ -46,12 +46,14 @@
 //!
 
 use libparasail_sys::{
-    parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_matches, parasail_result_get_score, parasail_result_get_similar, parasail_result_is_banded, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_stats, parasail_result_is_striped, parasail_result_is_sw, parasail_result_t 
+    parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_length_col, parasail_result_get_length_row, parasail_result_get_length_table, parasail_result_get_matches, parasail_result_get_matches_col, parasail_result_get_matches_row, parasail_result_get_matches_table, parasail_result_get_score, parasail_result_get_score_col, parasail_result_get_score_row, parasail_result_get_score_table, parasail_result_get_similar, parasail_result_get_similar_col, parasail_result_get_similar_row, parasail_result_get_similar_table, parasail_result_get_trace_del_table, parasail_result_get_trace_ins_table, parasail_result_get_trace_table, parasail_result_is_banded, parasail_result_is_blocked, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table, parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table, parasail_result_is_trace, parasail_result_t
 };
 
 use std::ffi::CString;
 use std::ops::Deref;
+use std::path::Path;
 use std::sync::Arc;
+use std::io;
 
 /// Substitution matrix for sequence alignment.
 /// Matrices can be created from:
@@ -61,7 +63,8 @@ use std::sync::Arc;
 /// - a PSSM (position-specific scoring matrix)
 #[derive(Debug, Clone)]
 pub struct Matrix {
-    inner: *const parasail_matrix_t
+    inner: *const parasail_matrix_t,
+    builtin: bool,
 }
 
 impl Matrix {
@@ -71,10 +74,11 @@ impl Matrix {
         assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
         unsafe {
             let alphabet = &CString::new(alphabet).unwrap();
-            Matrix { inner: parasail_matrix_create(
+            Self { inner: parasail_matrix_create(
                 alphabet.as_ptr(),
                 match_score,
-                mismatch_score)
+                mismatch_score),
+                builtin: false
             }
         }
     }
@@ -86,7 +90,7 @@ impl Matrix {
     pub fn from(matrix_name: &str) -> Self {
         unsafe {
             let matrix = parasail_matrix_lookup(matrix_name.as_ptr() as *const i8);
-            Matrix { inner: matrix }
+            Self { inner: matrix, builtin: true }
         }
     }
 
@@ -145,7 +149,7 @@ impl Matrix {
         let file = CString::new(file).unwrap();
         unsafe {
             Matrix {
-                inner: parasail_matrix_from_file(file.as_ptr())
+                inner: parasail_matrix_from_file(file.as_ptr()), builtin: false
             }
         }
     }
@@ -154,27 +158,26 @@ impl Matrix {
     pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Self {
         let alphabet = CString::new(alphabet).unwrap();
         unsafe {
-            Matrix {
+            Self {
                 inner: parasail_matrix_pssm_create(
                     alphabet.as_ptr(),
                     values.as_ptr(),
                     rows
-                )
+                ),
+                builtin: false
             }
         }
     }
 
     /// Convert a square scoring matrix to a PSSM (position-specific scoring matrix).
-    pub fn convert_square_to_pssm(&self, pssm_query: &str) -> Self {
+    pub fn convert_square_to_pssm(&mut self, pssm_query: &str) {
         let pssm_query_string = CString::new(pssm_query).unwrap();
         unsafe {
-            Matrix {
-                inner: parasail_matrix_convert_square_to_pssm(
+            self.inner = parasail_matrix_convert_square_to_pssm(
                     self.inner,
                     pssm_query_string.as_ptr(),
                     pssm_query.len() as i32
-                )
-            }
+                );
         }
     }
 }
@@ -197,6 +200,11 @@ impl Deref for Matrix {
 #[doc(hidden)]
 impl Drop for Matrix {
     fn drop(&mut self) {
+
+        if self.builtin {
+            return;
+        }
+
         unsafe {
             parasail_matrix_free(self.inner as *mut parasail_matrix_t)
         }
@@ -211,6 +219,7 @@ unsafe impl Sync for Matrix {}
 // Query profile for sequence alignment
 pub struct Profile {
     inner: *mut parasail_profile_t,
+    use_stats: bool,
 }
 
 impl Profile {
@@ -225,11 +234,11 @@ impl Profile {
             match with_stats {
                 true => {
                     let profile = parasail_profile_create_stats_sat(query.as_ptr(), query_len, **matrix);
-                    Profile { inner: profile }
+                    Profile { inner: profile, use_stats: true }
                 },
                 false => {
                     let profile = parasail_profile_create_sat(query.as_ptr(), query_len, **matrix);
-                    Profile { inner: profile }
+                    Profile { inner: profile, use_stats: false }
                 }
             }
         }
@@ -239,7 +248,7 @@ impl Profile {
 /// Default profile is null
 impl Default for Profile {
     fn default() -> Self {
-        Profile { inner: std::ptr::null_mut() }
+        Profile { inner: std::ptr::null_mut(), use_stats: false }
     }
 }
 
@@ -276,6 +285,9 @@ pub struct AlignerBuilder {
     allow_gaps: Vec<String>,
     vec_strategy: String, 
     use_stats: bool,
+    use_table: bool,
+    use_last_rowcol: bool,
+    use_trace: bool,
 }
 
 impl Default for AlignerBuilder {
@@ -288,6 +300,9 @@ impl Default for AlignerBuilder {
             allow_gaps: Vec::default(),
             vec_strategy: String::from("striped"),
             use_stats: false,
+            use_table: false,
+            use_last_rowcol: false,
+            use_trace: false,
         }
     }
 }
@@ -333,8 +348,28 @@ impl AlignerBuilder {
     }
 
     /// Set whether to use statistics for alignment. By default, statistics are not used.
-    pub fn use_stats(&mut self, use_stats: bool) -> &mut Self {
-        self.use_stats = use_stats;
+    pub fn use_stats(&mut self) -> &mut Self {
+        self.use_stats = true;
+        self
+    }
+
+    /// Set whether to return the score table. By default, the score table is not returned.
+    pub fn use_table(&mut self) -> &mut Self {
+        self.use_table = true;
+        self
+    }
+
+    /// Set whether to return the last row and column of the score table.
+    /// By default, the last row and column are not returned.
+    /// Note that if both use_table and use_last_rowcol are set to true, use_table
+    /// will be ignored and only the last row and column will be returned.
+    pub fn use_last_rowcol(&mut self) -> &mut Self {
+        self.use_last_rowcol = true;
+        self
+    }
+
+    pub fn use_trace(&mut self) -> &mut Self {
+        self.use_trace = true;
         self
     }
 
@@ -348,6 +383,9 @@ impl AlignerBuilder {
             allow_gaps: self.allow_gaps.clone(),
             vec_strategy: self.vec_strategy.clone(),
             use_stats: self.use_stats,
+            use_table: self.use_table,
+            use_last_rowcol: self.use_last_rowcol,
+            use_trace: self.use_trace,
         }
     }
 }
@@ -361,6 +399,9 @@ pub struct Aligner {
     allow_gaps: Vec<String>,
     vec_strategy: String,
     use_stats: bool,
+    use_table: bool,
+    use_last_rowcol: bool,
+    use_trace: bool,
 }
 
 impl Aligner {
@@ -388,11 +429,22 @@ impl Aligner {
             parasail_fn_vec = format!("_{}", self.vec_strategy);
         }
 
-        let use_stats: &str;
-        if self.use_stats {
-            use_stats = "_stats";
+        let use_table: &str;
+        if self.use_last_rowcol {
+            use_table = "_rowcol";
         } else {
-            use_stats = "";
+            if self.use_table {
+                use_table = "_table";
+            } else {
+                use_table = "";
+            }
+        }
+
+        let use_trace: &str;
+        if self.use_trace {
+            use_trace = "_trace";
+        } else {
+            use_trace = "";
         }
 
         if self.profile.is_null() {
@@ -401,8 +453,14 @@ impl Aligner {
             let query = query.unwrap();
             let query_len = query.len() as i32;
 
+            let use_stats: &str;
+            if self.use_stats {
+                use_stats = "_stats";
+            } else {
+                use_stats = "";
+            }
 
-            let parasail_fn_name = CString::new(format!("parasail_{}{}{}{}_sat", mode, sg_gaps_fn_part, use_stats, parasail_fn_vec))
+            let parasail_fn_name = CString::new(format!("parasail_{}{}{}{}{}{}_sat", mode, sg_gaps_fn_part, use_trace, use_stats, use_table, parasail_fn_vec))
                 .unwrap_or_else(|e| panic!("CString::new failed: {}", e));
 
             unsafe {
@@ -425,11 +483,18 @@ impl Aligner {
             }
         } else {
             // use profile
+            
             assert!(self.vec_strategy == "striped" || self.vec_strategy == "scan",
             "Vectorization strategy must be striped or scan for alignment with a profile.");
 
+            let use_stats: &str;
+            if self.profile.use_stats {
+                use_stats = "_stats";
+            } else {
+                use_stats = "";
+            }
 
-            let parasail_fn_name = CString::new(format!("parasail_{}{}{}{}_profile_sat", mode, sg_gaps_fn_part, use_stats, parasail_fn_vec))
+            let parasail_fn_name = CString::new(format!("parasail_{}{}{}{}{}{}_profile_sat", mode, sg_gaps_fn_part, use_trace, use_stats, use_table, parasail_fn_vec))
                 .unwrap_or_else(|e| panic!("CString::new failed: {}", e));
 
             unsafe {
@@ -507,10 +572,15 @@ impl AlignResult {
     }
 
     /// Get number of matches in the alignment.
-    pub fn get_matches(&self) -> i32 {
-        unsafe {
-            parasail_result_get_matches(self.inner)
+    pub fn get_matches(&self) -> Result<i32, io::Error> {
+        if self.is_stats() {
+            unsafe {
+                Ok(parasail_result_get_matches(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Matches are not available without stats."))
         }
+        
     }
 
     /// 
@@ -521,13 +591,179 @@ impl AlignResult {
     }
 
     /// Get alignment length.
-    pub fn get_length(&self) -> i32 {
-        unsafe {
-            if self.use_stats() {
-                parasail_result_get_length(self.inner)
-            } else {
-                panic!("Alignment length is not available without stats.");
+    pub fn get_length(&self) -> Result<i32, io::Error> {
+        if self.is_stats() {
+            unsafe {
+                Ok(parasail_result_get_length(self.inner))
             }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Length is not available without stats."))
+        }
+    }
+
+    /// Get score table.
+    pub fn get_score_table(&self) -> Result<i32, io::Error> {
+        if self.is_table() || self.is_stats_table() {
+            unsafe {
+                Ok(*parasail_result_get_score_table(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Score table is not available without setting use_table"))
+        }
+    }
+
+    /// Get matches table.
+    pub fn get_matches_table(&self) -> Result<i32, io::Error> {
+        if self.is_stats_table() {
+            unsafe {
+                Ok(*parasail_result_get_matches_table(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Matches table is not available without setting use_stats and use_table"))
+        }
+    }
+
+    /// Get similar table.
+    pub fn get_similar_table(&self) -> Result<i32, io::Error> {
+        if self.is_stats_table() {
+            unsafe {
+                Ok(*parasail_result_get_similar_table(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Similar table is not available without setting use_stats and use_table"))
+        }
+    }
+
+    /// Get length table.
+    pub fn get_length_table(&self) -> Result<i32, io::Error> {
+        if self.is_stats_table() {
+            unsafe {
+                Ok(*parasail_result_get_length_table(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Length table is not available without setting use_stats and use_table"))
+        }
+    }
+
+    /// Get score row.
+    pub fn get_score_row(&self) -> Result<i32, io::Error> {
+        if self.is_rowcol() || self.is_stats_rowcol() {
+            unsafe {
+                Ok(*parasail_result_get_score_row(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Score row is not available without setting use_rowcol"))
+        }
+    }
+
+    /// Get matches row.
+    pub fn get_matches_row(&self) -> Result<i32, io::Error> {
+        if self.is_stats_rowcol() {
+            unsafe {
+                Ok(*parasail_result_get_matches_row(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Matches row is not available without setting use_stats and use_last_rowcol"))
+        }
+    }
+
+    /// Get similar row.
+    pub fn get_similar_row(&self) -> Result<i32, io::Error> {
+        if self.is_stats_rowcol() {
+            unsafe {
+                Ok(*parasail_result_get_similar_row(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Similar row is not available without setting use_stats and use_last_rowcol"))
+            
+        }
+    }
+
+    /// Get length row.
+    pub fn get_length_row(&self) -> Result<i32, io::Error> {
+        if self.is_stats_rowcol() {
+            unsafe {
+                Ok(*parasail_result_get_length_row(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Length row is not available without setting use_stats and use_last_rowcol"))
+        }
+    }
+
+    /// Get score column.
+    pub fn get_score_col(&self) -> Result<i32, io::Error> {
+        if self.is_rowcol() || self.is_stats_rowcol() {
+            unsafe {
+                Ok(*parasail_result_get_score_col(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Score column is not available without setting use_rowcol"))
+        }
+    }
+
+    /// Get matches column.
+    pub fn get_matches_col(&self) -> Result<i32, io::Error> {
+        if self.is_stats_rowcol() {
+            unsafe {
+                Ok(*parasail_result_get_matches_col(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Matches column is not available without setting use_stats and use_last_rowcol"))
+        }
+    }
+
+    /// Get similar column.
+    pub fn get_similar_col(&self) -> Result<i32, io::Error> {
+        if self.is_stats_rowcol() {
+            unsafe {
+                Ok(*parasail_result_get_similar_col(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Similar column is not available without setting use_stats and use_last_rowcol"))
+        }
+    }
+
+    /// Get length column
+    pub fn get_length_col(&self) -> Result<i32, io::Error> {
+        if self.is_stats_rowcol() {
+            unsafe {
+                Ok(*parasail_result_get_length_col(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Length column is not available without setting use_stats and use_last_rowcol"))
+        }
+    }
+
+    /// Get trace table.
+    pub fn get_trace_table(&self) -> Result<i32, io::Error> {
+        if self.is_trace() {
+            unsafe {
+                Ok(*parasail_result_get_trace_table(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Trace table is not available without setting use_trace"))
+        }
+    }
+
+    /// Get trace insertion table.
+    pub fn get_trace_ins_table(&self) -> Result<i32, io::Error> {
+        if self.is_trace() {
+            unsafe {
+                Ok(*parasail_result_get_trace_ins_table(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
+        }
+    }
+
+    /// Get trace deletion table.
+    pub fn get_trace_del_table(&self) -> Result<i32, io::Error> {
+        if self.is_trace() {
+            unsafe {
+                Ok(*parasail_result_get_trace_del_table(self.inner))
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
         }
     }
 
@@ -589,9 +825,51 @@ impl AlignResult {
         }
     }
 
-    pub fn use_stats(&self) -> bool {
+    pub fn is_blocked(&self) -> bool {
+        unsafe {
+            parasail_result_is_blocked(self.inner) != 0
+        }
+    }
+
+    /// Check if statistics are returned from alignment.
+    pub fn is_stats(&self) -> bool {
         unsafe {
             parasail_result_is_stats(self.inner) != 0
+        }
+    }
+
+    /// Check if result is a stats table
+    pub fn is_stats_table(&self) -> bool {
+        unsafe {
+            parasail_result_is_stats_table(self.inner) != 0
+        }
+    }
+
+    /// Check if result is a table
+    pub fn is_table(&self) -> bool {
+        unsafe {
+            parasail_result_is_table(self.inner) != 0
+        }
+    }
+
+    /// Check if result is a last row and column of table
+    pub fn is_rowcol(&self) -> bool {
+        unsafe {
+            parasail_result_is_rowcol(self.inner) != 0
+        }
+    }
+
+    /// Check if result is a row and column of table with additional statistics.
+    pub fn is_stats_rowcol(&self) -> bool {
+        unsafe {
+            parasail_result_is_stats_rowcol(self.inner) != 0
+        }
+    }
+
+    /// Check if is trace.
+    pub fn is_trace(&self) -> bool {
+        unsafe {
+            parasail_result_is_trace(self.inner) != 0
         }
     }
 }
@@ -604,5 +882,4 @@ impl Drop for AlignResult {
         }
     }
 }
-
 

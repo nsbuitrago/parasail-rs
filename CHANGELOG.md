@@ -1,5 +1,47 @@
 # Change Log
 
+All notable changes will be documented here under the headers \<VERSION\> - <YY.MM.DD> in reverse chronological order.
+
+## 0.3.0 - 2024.03.03
+
+- Note that currenlty use_trace and use_stats can both be set to true. However, traceback is only compatible without stats.
+
+### Breaking Changes
+
+- use_stats method changed to is_stats on AlignResult
+- use_stats and use_table methods on AlignerBuilder do not take a bool.
+
+### Features
+
+New methods for AlignResults:
+
+- [x] get_score_table
+- [x] get_matches_table
+- [x] get_similar_table
+- [x] get_length_table
+- [x] get_score_row
+- [x] get_matches_row
+- [x] get_similar_row
+- [x] get_length_row
+- [x] get_score_col
+- [x] get_matches_col
+- [x] get_similar_col
+- [x] get_length_col
+- [x] get_trace_table
+- [x] is_blocked
+- [x] is_stats_table
+- [x] is_stats_rowcol
+- [x] is_rowcol
+- [x] is_stats_trace
+
+### Bug Fixes
+
+- Check that aligner was initialized with use_stats = true before calling methods that requires additional stats:
+    - get_matches
+    - get_length 
+- Check that use_stats for profile and aligner match before aligning
+- Avoid calling `parasail_matrix_free` on drop for builtin matrices
+
 ## 0.2.3 - 2024.02.28
 
 ### Changes
@@ -40,12 +82,18 @@
 --
 
 TODO:
+Implement AlignResult methods:
+    - [ ] get_trace_ins_table
+    - [ ] get_trace_del_table
+- [ ] convert panics to better errors
+    - [ ] use results for handling errors
+- [ ] convert unwraps for better error handling
 - [x] using new builder pattern for Aligner
 - [x] global, local, and semi_global alignment stats functions
 - [x] implement different semi_global variants
 - [x] local alignment implementation
 - [x] semi-global alignment implementation
-- [ ] tests for scoring matrices and alignments
+- [x] tests for scoring matrices and alignments
 - [x] query profiles and corresponding functions
 - [x] Work on adding safety to bindings
 
