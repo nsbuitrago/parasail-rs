@@ -11,7 +11,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! parasail-rs = "0.2.3"
+//! parasail-rs = "0.3.0"
 //! ```
 //!
 //! ## Examples

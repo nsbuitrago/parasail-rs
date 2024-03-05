@@ -9,7 +9,9 @@ All notable changes will be documented here under the headers \<VERSION\> - <YY.
 ### Breaking Changes
 
 - use_stats method changed to is_stats on AlignResult
-- use_stats and use_table methods on AlignerBuilder do not take a bool.
+- use_stats and use_table methods on AlignerBuilder do not take a bool. Simply
+call the methods to set them to true. By default, these extra params for alignment
+are not used.
 
 ### Features
 
