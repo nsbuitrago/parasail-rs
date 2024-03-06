@@ -341,29 +341,29 @@ pub fn trace_table() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[test]
-pub fn trace_ins_table() -> Result<(), Box<dyn std::error::Error>> {
-    let query = b"ACGTA";
-    let reference = b"ACGTTA";
-    let aligner = Aligner::new().use_trace().build();
-    let result = aligner.global(query, reference);
-    assert!(result.is_trace());
-    println!("Trace ins table: {:?}", result.get_trace_ins_table()?);
+// #[test]
+// pub fn trace_ins_table() -> Result<(), Box<dyn std::error::Error>> {
+//     let query = b"ACGTA";
+//     let reference = b"ACGTTA";
+//     let aligner = Aligner::new().use_trace().build();
+//     let result = aligner.global(query, reference);
+//     assert!(result.is_trace());
+//     // println!("Trace ins table: {:?}", result.get_trace_ins_table()?);
+//
+//     Ok(())
+// }
 
-    Ok(())
-}
-
-#[test]
-pub fn trace_del_table() -> Result<(), Box<dyn std::error::Error>> {
-    let query = b"ACGT";
-    let reference = b"ACGT";
-    let aligner = Aligner::new().use_trace().build();
-    let result = aligner.global(query, reference);
-    assert!(result.is_trace());
-    // println!("{:?}", result.get_trace_del_table()?);
-
-    Ok(())
-}
+// #[test]
+// pub fn trace_del_table() -> Result<(), Box<dyn std::error::Error>> {
+//     let query = b"ACGT";
+//     let reference = b"ACGT";
+//     let aligner = Aligner::new().use_trace().build();
+//     let result = aligner.global(query, reference);
+//     assert!(result.is_trace());
+//     println!("Trace del table: {:?}", result.get_trace_del_table()?);
+//
+//     Ok(())
+// }
 
 #[test]
 pub fn global_with_profile() {

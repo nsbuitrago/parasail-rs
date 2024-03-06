@@ -11,7 +11,7 @@ Add the latest version of `parasail-rs` to your `Cargo.toml` by running `cargo a
 ```toml
 
 [dependencies]
-parasail-rs = "0.3.0"
+parasail-rs = "0.4.0"
 
 ```
 

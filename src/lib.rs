@@ -11,7 +11,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! parasail-rs = "0.3.0"
+//! parasail-rs = "0.4.0"
 //! ```
 //!
 //! ## Examples
@@ -46,7 +46,7 @@
 //!
 
 use libparasail_sys::{
-    parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_length_col, parasail_result_get_length_row, parasail_result_get_length_table, parasail_result_get_matches, parasail_result_get_matches_col, parasail_result_get_matches_row, parasail_result_get_matches_table, parasail_result_get_score, parasail_result_get_score_col, parasail_result_get_score_row, parasail_result_get_score_table, parasail_result_get_similar, parasail_result_get_similar_col, parasail_result_get_similar_row, parasail_result_get_similar_table, parasail_result_get_trace_del_table, parasail_result_get_trace_ins_table, parasail_result_get_trace_table, parasail_result_is_banded, parasail_result_is_blocked, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table, parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table, parasail_result_is_trace, parasail_result_t
+    parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file, parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_length_col, parasail_result_get_length_row, parasail_result_get_length_table, parasail_result_get_matches, parasail_result_get_matches_col, parasail_result_get_matches_row, parasail_result_get_matches_table, parasail_result_get_score, parasail_result_get_score_col, parasail_result_get_score_row, parasail_result_get_score_table, parasail_result_get_similar, parasail_result_get_similar_col, parasail_result_get_similar_row, parasail_result_get_similar_table, parasail_result_get_trace_table, parasail_result_is_banded, parasail_result_is_blocked, parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol, parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg, parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table, parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table, parasail_result_is_trace, parasail_result_t
 };
 
 use std::ffi::CString;
@@ -820,7 +820,7 @@ impl AlignResult {
             Err(io::Error::new(io::ErrorKind::Other, "Length column is not available without setting use_stats and use_last_rowcol"))
         }
     }
-
+    
     /// Get trace table.
     pub fn get_trace_table(&self) -> Result<i32, io::Error> {
         if self.is_trace() {
@@ -833,26 +833,26 @@ impl AlignResult {
     }
 
     /// Get trace insertion table.
-    pub fn get_trace_ins_table(&self) -> Result<*mut i32, io::Error> {
-        if self.is_trace() {
-            unsafe {
-                Ok(parasail_result_get_trace_ins_table(self.inner))
-            }
-        } else {
-            Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
-        }
-    }
+    // pub fn get_trace_ins_table(&self) -> Result<*mut i32, io::Error> {
+    //     if self.is_trace() {
+    //         unsafe {
+    //             Ok(parasail_result_get_trace_ins_table(self.inner))
+    //         }
+    //     } else {
+    //         Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
+    //     }
+    // }
 
     /// Get trace deletion table.
-    pub fn get_trace_del_table(&self) -> Result<i32, io::Error> {
-        if self.is_trace() {
-            unsafe {
-                Ok(*parasail_result_get_trace_del_table(self.inner))
-            }
-        } else {
-            Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
-        }
-    }
+    // pub fn get_trace_del_table(&self) -> Result<*mut i32, io::Error> {
+    //     if self.is_trace() {
+    //         unsafe {
+    //             Ok(parasail_result_get_trace_del_table(self.inner))
+    //         }
+    //     } else {
+    //         Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
+    //     }
+    // }
 
     /// Check if the alignment mode is global.
     pub fn is_global(&self) -> bool {
