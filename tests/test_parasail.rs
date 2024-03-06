@@ -10,7 +10,7 @@ pub fn matrix_construction() {
     Matrix::create(b"ACGT", 3, -2);
 
     // from name
-    let blosum62 = Matrix::from("blosum62");
+    Matrix::from("blosum62");
 
     // square matrix from file
     Matrix::from_file("./tests/square.txt");
@@ -47,7 +47,7 @@ pub fn aligner_construction() {
         .gap_open(10)
         .gap_extend(1)
         .profile(Profile::default())
-        .allow_gaps(vec![String::from("qx")])
+        .allow_query_gaps(vec![String::from("prefix"), String::from("suffix")])
         .vec_strategy("striped")
         .use_stats()
         .build();
@@ -175,13 +175,12 @@ pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
-    println!("{:?}", result.get_similar_table()?);
+    println!("similar table: {:?}", result.get_similar_table()?);
 
     Ok(())
 }
@@ -192,13 +191,12 @@ pub fn length_table() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
-    println!("{:?}", result.get_length_table()?);
+    println!("Length table: {:?}", result.get_length_table()?);
     
     Ok(())
 }
@@ -209,13 +207,12 @@ pub fn score_row() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("{:?}", result.get_score_row()?);
+    println!("Score row: {:?}", result.get_score_row()?);
     
     Ok(())
 }
@@ -226,13 +223,12 @@ pub fn matches_row() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("{:?}", result.get_matches_row()?);
+    println!("Matches row: {:?}", result.get_matches_row()?);
     
     Ok(())
 }
@@ -243,13 +239,12 @@ pub fn similar_row() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("{:?}", result.get_similar_row()?);
+    println!("Similar row: {:?}", result.get_similar_row()?);
     
     Ok(())
 }
@@ -260,13 +255,12 @@ pub fn length_row() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("{:?}", result.get_length_row());
+    println!("Length row: {:?}", result.get_length_row());
     
     Ok(())
 }
@@ -277,13 +271,12 @@ pub fn score_col() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("{:?}", result.get_score_col()?);
+    println!("Score col: {:?}", result.get_score_col()?);
     
     Ok(())
 }
@@ -294,13 +287,12 @@ pub fn match_col() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("{:?}", result.get_matches_col()?);
+    println!("Matches col: {:?}", result.get_matches_col()?);
     
     Ok(())
 }
@@ -311,13 +303,12 @@ pub fn similar_col() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("{:?}", result.get_similar_col()?);
+    println!("Similar col: {:?}", result.get_similar_col()?);
     
     Ok(())
 }
@@ -328,13 +319,12 @@ pub fn length_col() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
-    let default_score = 1;
 
     let result = aligner.global(query, reference);
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("{:?}", result.get_length_col()?);
+    println!("Length col: {:?}", result.get_length_col()?);
     
     Ok(())
 }
@@ -346,19 +336,19 @@ pub fn trace_table() -> Result<(), Box<dyn std::error::Error>> {
     let aligner = Aligner::new().use_trace().build();
     let result = aligner.global(query, reference);
     assert!(result.is_trace());
-    println!("{:?}", result.get_trace_table()?);
+    println!("Trace table: {:?}", result.get_trace_table()?);
 
     Ok(())
 }
 
 #[test]
 pub fn trace_ins_table() -> Result<(), Box<dyn std::error::Error>> {
-    let query = b"ACGT";
-    let reference = b"ACGT";
+    let query = b"ACGTA";
+    let reference = b"ACGTTA";
     let aligner = Aligner::new().use_trace().build();
     let result = aligner.global(query, reference);
     assert!(result.is_trace());
-    // println!("{:?}", result.get_trace_ins_table()?);
+    println!("Trace ins table: {:?}", result.get_trace_ins_table()?);
 
     Ok(())
 }

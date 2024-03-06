@@ -1,6 +1,22 @@
 # Change Log
 
-All notable changes will be documented here under the headers \<VERSION\> - <YY.MM.DD> in reverse chronological order.
+All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
+
+## 0.4.0 - 2024.03.xx
+
+### Features
+
+- Better support for allowing various gap configurations in semi-global alignments [\#1].
+
+### Breaking Changes
+
+- removed allow_gaps
+- use allow_query_gaps and allow_ref_gaps in AlignerBuilder / Aligner for semi-global alignment.
+
+### Bug Fixes
+
+- use_table and use_trace disable each other if called to be mutually exclusive [\#2].
+- use_table and use_stats disable each other if called to be mutually exclusive [\#2].
 
 ## 0.3.0 - 2024.03.03
 
@@ -8,7 +24,7 @@ All notable changes will be documented here under the headers \<VERSION\> - <YY.
 
 ### Breaking Changes
 
-- use_stats method changed to is_stats on AlignResult
+- use_stats method changed to is_stats on AlignResult.
 - use_stats and use_table methods on AlignerBuilder do not take a bool. Simply
 call the methods to set them to true. By default, these extra params for alignment
 are not used.

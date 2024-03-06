@@ -51,7 +51,6 @@ use libparasail_sys::{
 
 use std::ffi::CString;
 use std::ops::Deref;
-use std::path::Path;
 use std::sync::Arc;
 use std::io;
 
@@ -282,7 +281,8 @@ pub struct AlignerBuilder {
     gap_open: i32,
     gap_extend: i32,
     profile: Arc<Profile>,
-    allow_gaps: Vec<String>,
+    allow_query_gaps: Vec<String>,
+    allow_ref_gaps: Vec<String>,
     vec_strategy: String, 
     use_stats: bool,
     use_table: bool,
@@ -297,7 +297,8 @@ impl Default for AlignerBuilder {
             gap_open: 5,
             gap_extend: 2,
             profile: Profile::default().into(), 
-            allow_gaps: Vec::default(),
+            allow_query_gaps: Vec::default(),
+            allow_ref_gaps: Vec::default(),
             vec_strategy: String::from("striped"),
             use_stats: false,
             use_table: false,
@@ -332,11 +333,33 @@ impl AlignerBuilder {
         self
     }
 
-    /// Set allowed gaps at the beginning and end of query/reference sequences 
-    /// for semi-global alignment. By default, gaps are allowed at the beginning and end
-    /// of both query and reference sequences.
-    pub fn allow_gaps(&mut self, allow_gaps: Vec<String>) -> &mut Self {
-        self.allow_gaps = allow_gaps;
+    /// Set allowed gaps on query sequence for semi-global alignment. 
+    /// By default, gaps are allowed at the beginning and end of the query sequence.
+    /// Example:
+    /// ```rust, no_run
+    /// use parasail_rs::Aligner;
+    ///
+    /// // allow gaps at the beginning of the query sequence
+    /// let allow_gaps = vec![String::from("prefix")];
+    /// let aligner = Aligner::new().allow_query_gaps(allow_gaps).build();
+    /// ```
+    pub fn allow_query_gaps(&mut self, allow_gaps: Vec<String>) -> &mut Self {
+        self.allow_query_gaps = allow_gaps;
+        self
+    }
+
+    /// Set allowed gaps on reference sequence for semi-global alignment. 
+    /// By default, gaps are allowed at the beginning and end of the reference sequence.
+    /// Example:
+    /// ```rust, no_run
+    /// use parasail_rs::Aligner;
+    ///
+    /// // allow gaps at the beginning of the reference sequence
+    /// let allow_gaps = vec![String::from("suffix")];
+    /// let aligner = Aligner::new().allow_query_gaps(allow_gaps).build();
+    /// ```
+    pub fn allow_ref_gaps(&mut self, allow_gaps: Vec<String>) -> &mut Self {
+        self.allow_ref_gaps = allow_gaps;
         self
     }
 
@@ -348,14 +371,32 @@ impl AlignerBuilder {
     }
 
     /// Set whether to use statistics for alignment. By default, statistics are not used.
+    /// Note that enabling stats and traceback is not supported. Enabling stats will disable
+    /// traceback if it is enabled.
     pub fn use_stats(&mut self) -> &mut Self {
         self.use_stats = true;
+
+        // disable traceback if stats are enabled
+        if self.use_trace {
+            // TODO: log warning 
+            println!("Warning: Traceback was enabled previously, but not supported with stats. Disabling traceback");
+            self.use_trace = false;
+        }
+
         self
     }
 
     /// Set whether to return the score table. By default, the score table is not returned.
+    /// Note that enabling traceback and tables is not supported. Enabling tables will disable
+    /// traceback.
     pub fn use_table(&mut self) -> &mut Self {
         self.use_table = true;
+
+        // disable traceback if tables are enabled
+        if self.use_trace {
+            self.use_trace = false;
+        }
+
         self
     }
 
@@ -368,8 +409,26 @@ impl AlignerBuilder {
         self
     }
 
+    /// Set whether to enable traceback capability. By default, traceback is not enabled.
+    /// Note that enabling traceback along with tables or stats is not supported.
+    /// Enabling traceback will disable tables and stats if they are enabled.
     pub fn use_trace(&mut self) -> &mut Self {
         self.use_trace = true;
+
+        // disable table if traceback is enabled
+        if self.use_table {
+            // TODO: log warning
+            println!("Warning: Table was enabled previously, but not supported with traceback. Disabling table");
+            self.use_table = false;
+        }
+
+        // disable stats if traceback is enabled
+        if self.use_stats {
+            // TODO: log warning 
+            println!("Warning: Stats were enabled previously, but not supported with traceback. Disabling stats");
+            self.use_stats = false;
+        }
+
         self
     }
 
@@ -380,7 +439,8 @@ impl AlignerBuilder {
             gap_open: self.gap_open,
             gap_extend: self.gap_extend,
             profile: Arc::clone(&self.profile),
-            allow_gaps: self.allow_gaps.clone(),
+            allow_query_gaps: self.allow_query_gaps.clone(),
+            allow_ref_gaps: self.allow_ref_gaps.clone(),
             vec_strategy: self.vec_strategy.clone(),
             use_stats: self.use_stats,
             use_table: self.use_table,
@@ -396,7 +456,8 @@ pub struct Aligner {
     gap_open: i32,
     gap_extend: i32,
     profile: Arc<Profile>,
-    allow_gaps: Vec<String>,
+    allow_query_gaps: Vec<String>,
+    allow_ref_gaps: Vec<String>,
     vec_strategy: String,
     use_stats: bool,
     use_table: bool,
@@ -410,6 +471,29 @@ impl Aligner {
         AlignerBuilder::default()
     }
 
+    /// Helper function for formatting semi-global fn name with correct gap syntax.
+    fn get_allowed_gaps(&self, prefix: &str, allowed_gaps_vec: &Vec<String>) -> Vec<String> {
+        let mut allowed_gaps = Vec::new();
+
+        if allowed_gaps_vec.len() > 0 {
+
+            if allowed_gaps_vec.contains(&String::from("prefix")) && 
+            allowed_gaps_vec.contains(&String::from("suffix")) {
+                allowed_gaps.push(format!("_{}x", prefix));
+            }
+
+            else if allowed_gaps_vec.contains(&String::from("prefix")) {
+                allowed_gaps.push(format!("_{}b", prefix));
+            }
+
+            else if allowed_gaps_vec.contains(&String::from("suffix")) {
+                allowed_gaps.push(format!("_{}e", prefix));
+            }
+        }
+
+        allowed_gaps
+    }
+
     /// Perform alignment between a query and reference sequence.
     /// This is a helper function used by the more specific alignment wrappers.
     /// However, you can call this directly and pass the mode as "nw", "sg", or "sw
@@ -419,8 +503,11 @@ impl Aligner {
         let reference = CString::new(reference).unwrap();
         let mut sg_gaps_fn_part = String::new();
         if mode == "sg" {
-            if self.allow_gaps.len() > 0 {
-                sg_gaps_fn_part = format!("_{}", self.allow_gaps.join("_"));
+            let query_gaps_part = self.get_allowed_gaps("q", &self.allow_query_gaps);
+            let ref_gaps_part = self.get_allowed_gaps("d", &self.allow_ref_gaps);
+            sg_gaps_fn_part = format!("{}{}", query_gaps_part.join(""), ref_gaps_part.join(""));
+            if sg_gaps_fn_part == "_qx_dx" {
+                sg_gaps_fn_part = String::default();
             }
         }
 
@@ -746,10 +833,10 @@ impl AlignResult {
     }
 
     /// Get trace insertion table.
-    pub fn get_trace_ins_table(&self) -> Result<i32, io::Error> {
+    pub fn get_trace_ins_table(&self) -> Result<*mut i32, io::Error> {
         if self.is_trace() {
             unsafe {
-                Ok(*parasail_result_get_trace_ins_table(self.inner))
+                Ok(parasail_result_get_trace_ins_table(self.inner))
             }
         } else {
             Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
