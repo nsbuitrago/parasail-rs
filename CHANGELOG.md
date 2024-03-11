@@ -2,12 +2,16 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
-## 0.4.1 - 2024.03.11
+## 0.5.0 - 2024.03.11
 
-### Improvements
+### Breaking Changes
 
-- TODO: change aligner fields to be simple (not necessarily copying from the builder)
-- code quality for constructing parasail fn names from Aligner builder.
+- Aligner builder takes now has a mode method to set alignment algorithm (nw, sg, sw).
+- Many wrapper alignment methods removed in favor of single align method.
+
+### Bug Fixes.
+
+- constructing parasail fn names from Aligner builder to avoid building on every alignment.
 
 ## 0.4.0 - 2024.03.06
 

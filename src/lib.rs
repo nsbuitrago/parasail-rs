@@ -24,7 +24,7 @@
 //! let reference = b"ACGT";
 //! let aligner = Aligner::new().build();
 
-//! let result = aligner.global(query, reference);
+//! let result = aligner.align(Some(query), reference);
 //! println!("Alignment Score: {}", result.get_score());
 //! ```
 //!
@@ -42,8 +42,8 @@
 //!     .profile(query_profile)
 //!     .build();
 //!
-//! let result_1 = aligner.global_with_profile(ref_1);
-//! let result_2 = aligner.global_with_profile(ref_2);
+//! let result_1 = aligner.align(None, ref_1);
+//! let result_2 = aligner.align(None, ref_2);
 //!
 //! println!("Score 1: {}", result_1.get_score());
 //! println!("Score 2: {}", result_2.get_score());
@@ -511,6 +511,10 @@ impl AlignerBuilder {
             profile = "";
             stats = &self.use_stats;
         } else {
+            assert!(
+                self.vec_strategy == "_striped" || self.vec_strategy == "_scan",
+                "Vectorization strategy must be striped or scan for alignment with a profile."
+            );
             profile = "_profile";
             if self.profile.use_stats {
                 stats = "_stats";
@@ -558,17 +562,11 @@ impl AlignerBuilder {
 
         Aligner {
             parasail_fn,
-            mode: self.mode.clone(),
             matrix: Arc::clone(&self.matrix),
             gap_open: self.gap_open,
             gap_extend: self.gap_extend,
             profile: Arc::clone(&self.profile),
-            allow_query_gaps: self.allow_query_gaps.clone(),
-            allow_ref_gaps: self.allow_ref_gaps.clone(),
             vec_strategy: self.vec_strategy.clone(),
-            use_stats: self.use_stats.clone(),
-            use_table: self.use_table.clone(),
-            use_trace: self.use_trace.clone(),
         }
     }
 }
@@ -612,17 +610,11 @@ impl AlignerFn {
 /// Aligner struct for sequence alignment
 pub struct Aligner {
     parasail_fn: AlignerFn,
-    pub mode: String,
     pub matrix: Arc<Matrix>,
     pub gap_open: i32,
     pub gap_extend: i32,
     profile: Arc<Profile>,
-    pub allow_query_gaps: Vec<String>,
-    pub allow_ref_gaps: Vec<String>,
     pub vec_strategy: String,
-    pub use_stats: String,
-    pub use_table: String,
-    pub use_trace: String,
 }
 
 impl Aligner {
@@ -632,9 +624,6 @@ impl Aligner {
     }
 
     /// Perform alignment between a query and reference sequence.
-    /// This is a helper function used by the more specific alignment wrappers.
-    /// However, you can call this directly and pass the mode as "nw", "sg", or "sw
-    /// for global (Needleman-Wunsch), semi-global, or local (Smith-Watermann) alignment, respectively.
     pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> AlignResult {
         let ref_len = reference.len() as i32;
         let reference = CString::new(reference).unwrap();
@@ -664,55 +653,18 @@ impl Aligner {
                     AlignResult { inner: result }
                 }
             }
-            AlignerFn::PFunction(f) => {
-                assert!(
-                    self.vec_strategy == "_striped" || self.vec_strategy == "_scan",
-                    "Vectorization strategy must be striped or scan for alignment with a profile."
+            AlignerFn::PFunction(f) => unsafe {
+                let result = f.unwrap()(
+                    **self.profile,
+                    reference.as_ptr(),
+                    ref_len,
+                    self.gap_open,
+                    self.gap_extend,
                 );
 
-                unsafe {
-                    let result = f.unwrap()(
-                        **self.profile,
-                        reference.as_ptr(),
-                        ref_len,
-                        self.gap_open,
-                        self.gap_extend,
-                    );
-
-                    AlignResult { inner: result }
-                }
-            }
+                AlignResult { inner: result }
+            },
         }
-    }
-
-    /// Perform global alignment between a query and reference sequence.
-    pub fn global(&self, query: &[u8], reference: &[u8]) -> AlignResult {
-        self.align(Some(query), reference)
-    }
-
-    /// Perform global alignment using a query profile and reference sequence.
-    pub fn global_with_profile(&self, reference: &[u8]) -> AlignResult {
-        self.align(None, reference)
-    }
-
-    /// Perform local alignment between a query and reference sequence.
-    pub fn local(&self, query: &[u8], reference: &[u8]) -> AlignResult {
-        self.align(Some(query), reference)
-    }
-
-    /// Perform local alignment using a query profile and reference sequence.
-    pub fn local_with_profile(&self, reference: &[u8]) -> AlignResult {
-        self.align(None, reference)
-    }
-
-    /// Perform semi-global alignment between a query and reference sequence.
-    pub fn semi_global(&self, query: &[u8], reference: &[u8]) -> AlignResult {
-        self.align(Some(query), reference)
-    }
-
-    /// Perform semi-global alignment using a query profile and reference sequence.
-    pub fn semi_global_with_profile(&self, reference: &[u8]) -> AlignResult {
-        self.align(None, reference)
     }
 }
 
