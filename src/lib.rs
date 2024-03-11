@@ -300,6 +300,44 @@ unsafe impl Send for Profile {}
 #[doc(hidden)]
 unsafe impl Sync for Profile {}
 
+/// Parasail alignment function.
+enum AlignerFn {
+    Function(
+        Option<
+            unsafe extern "C" fn(
+                *const i8,
+                i32,
+                *const i8,
+                i32,
+                i32,
+                i32,
+                *const parasail_matrix_t,
+            ) -> *mut parasail_result_t,
+        >,
+    ),
+    PFunction(
+        Option<
+            unsafe extern "C" fn(
+                *const parasail_profile_t,
+                *const i8,
+                i32,
+                i32,
+                i32,
+            ) -> *mut parasail_result_t,
+        >,
+    ),
+}
+
+/// Check if the aligner function is none.
+impl AlignerFn {
+    fn is_none(&self) -> bool {
+        match self {
+            AlignerFn::Function(f) => f.is_none(),
+            AlignerFn::PFunction(f) => f.is_none(),
+        }
+    }
+}
+
 /// Aligner builder
 pub struct AlignerBuilder {
     mode: String,
@@ -336,6 +374,12 @@ impl Default for AlignerBuilder {
 impl AlignerBuilder {
     /// Set alignment mode (nw - Needleman-Wunsch {global}, sg - semi-global, sw - Smith-Watermann
     /// {local}).
+    /// Example:
+    /// ```rust, no_run
+    /// use parasail_rs::Aligner;
+    /// let global_aligner = Aligner::new().mode("nw").build();
+    /// // ...
+    /// ```
     pub fn mode(&mut self, mode: &str) -> &mut Self {
         let valid_modes = vec!["nw", "sg", "sw"];
         let mode = mode.to_lowercase();
@@ -347,25 +391,28 @@ impl AlignerBuilder {
         self
     }
 
-    /// Set scoring matrix.
+    /// Set scoring matrix. The default is an identity matrix for DNA sequences.
+    /// For more information on creating matrices, see the [Matrix](https://docs.rs/parasail-rs/latest/parasail_rs/struct.Matrix.html) struct.
     pub fn matrix(&mut self, matrix: Matrix) -> &mut Self {
         self.matrix = Arc::new(matrix);
         self
     }
 
     /// Set gap open penalty (Note that this should be passed as a positive integer).
+    /// Default is 5.
     pub fn gap_open(&mut self, gap_open: i32) -> &mut Self {
         self.gap_open = gap_open;
         self
     }
 
     /// Set gap extend penalty (Note that this should be passed as a positive integer).
+    /// Default is 2
     pub fn gap_extend(&mut self, gap_extend: i32) -> &mut Self {
         self.gap_extend = gap_extend;
         self
     }
 
-    /// Set query profile.
+    /// Set query profile. No query profile is set by default.
     pub fn profile(&mut self, profile: Profile) -> &mut Self {
         self.profile = Arc::new(profile);
         self
@@ -401,8 +448,7 @@ impl AlignerBuilder {
         self
     }
 
-    /// Set vectorization strategy for alignment. By default, no vectorization
-    /// is used.
+    /// Set vectorization strategy for alignment. By default, striped is used.
     pub fn vec_strategy(&mut self, vec_strategy: &str) -> &mut Self {
         let valid_strategies = vec!["striped", "scan", "diag"];
         let vec_strategy = vec_strategy.to_lowercase();
@@ -538,7 +584,7 @@ impl AlignerBuilder {
         parasail_fn_name
     }
 
-    /// build aligner
+    /// Build the aligner.
     pub fn build(&mut self) -> Aligner {
         let fn_name = self.get_parasail_fn_name();
         let parasail_fn: AlignerFn;
@@ -571,42 +617,6 @@ impl AlignerBuilder {
     }
 }
 
-enum AlignerFn {
-    Function(
-        Option<
-            unsafe extern "C" fn(
-                *const i8,
-                i32,
-                *const i8,
-                i32,
-                i32,
-                i32,
-                *const parasail_matrix_t,
-            ) -> *mut parasail_result_t,
-        >,
-    ),
-    PFunction(
-        Option<
-            unsafe extern "C" fn(
-                *const parasail_profile_t,
-                *const i8,
-                i32,
-                i32,
-                i32,
-            ) -> *mut parasail_result_t,
-        >,
-    ),
-}
-
-impl AlignerFn {
-    fn is_none(&self) -> bool {
-        match self {
-            AlignerFn::Function(f) => f.is_none(),
-            AlignerFn::PFunction(f) => f.is_none(),
-        }
-    }
-}
-
 /// Aligner struct for sequence alignment
 pub struct Aligner {
     parasail_fn: AlignerFn,
@@ -618,7 +628,7 @@ pub struct Aligner {
 }
 
 impl Aligner {
-    /// Create a new aligner builder with default fields.
+    /// Create a new default aligner builder.
     pub fn new() -> AlignerBuilder {
         AlignerBuilder::default()
     }
