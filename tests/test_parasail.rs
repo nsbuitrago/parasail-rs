@@ -1,4 +1,4 @@
-use parasail_rs::{Matrix, Profile, Aligner};
+use parasail_rs::{Aligner, Matrix, Profile};
 use std::thread;
 
 #[test]
@@ -17,7 +17,7 @@ pub fn matrix_construction() {
 
     // pssm from file
     Matrix::from_file("./tests/pssm.txt");
-    
+
     // PSSM
     // let values = vec![1, 2, 3, 4];
     // let rows = vec![b'A', b'C'];
@@ -25,7 +25,6 @@ pub fn matrix_construction() {
 
     // convert square to pssm
 }
-
 
 #[test]
 pub fn profile_construction() {
@@ -105,10 +104,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(result.get_score_table()?, default_score);
 
     // one-off alignment with stats
-    let aligner = Aligner::new()
-        .use_stats()
-        .use_table()
-        .build();
+    let aligner = Aligner::new().use_stats().use_table().build();
 
     let result = aligner.global(query, reference);
     assert!(result.is_stats());
@@ -121,11 +117,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     let matrix = Matrix::create(b"ACGT", custom_score, -2);
     let profile = Profile::new(query, false, &matrix);
 
-    let aligner_w_profile = Aligner::new()
-        .profile(profile)
-        .use_stats()
-        .use_table()
-        .build();
+    let aligner_w_profile = Aligner::new().profile(profile).use_table().build();
 
     let result_w_profile = aligner_w_profile.global_with_profile(reference);
 
@@ -134,7 +126,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(!result_w_profile.is_stats_table());
     assert_eq!(result_w_profile.get_score_table()?, custom_score);
 
-    // alignment with profile, with stats
+    // // alignment with profile, with stats
     let profile = Profile::new(query, true, &matrix);
     let aligner_w_profile = Aligner::new()
         .profile(profile)
@@ -197,7 +189,7 @@ pub fn length_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(result.is_stats_table());
     println!("Length table: {:?}", result.get_length_table()?);
-    
+
     Ok(())
 }
 
@@ -213,7 +205,7 @@ pub fn score_row() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
     println!("Score row: {:?}", result.get_score_row()?);
-    
+
     Ok(())
 }
 
@@ -229,7 +221,7 @@ pub fn matches_row() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
     println!("Matches row: {:?}", result.get_matches_row()?);
-    
+
     Ok(())
 }
 
@@ -245,7 +237,7 @@ pub fn similar_row() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
     println!("Similar row: {:?}", result.get_similar_row()?);
-    
+
     Ok(())
 }
 
@@ -261,7 +253,7 @@ pub fn length_row() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
     println!("Length row: {:?}", result.get_length_row());
-    
+
     Ok(())
 }
 
@@ -277,7 +269,7 @@ pub fn score_col() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
     println!("Score col: {:?}", result.get_score_col()?);
-    
+
     Ok(())
 }
 
@@ -293,7 +285,7 @@ pub fn match_col() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
     println!("Matches col: {:?}", result.get_matches_col()?);
-    
+
     Ok(())
 }
 
@@ -309,7 +301,7 @@ pub fn similar_col() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
     println!("Similar col: {:?}", result.get_similar_col()?);
-    
+
     Ok(())
 }
 
@@ -325,7 +317,7 @@ pub fn length_col() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
     println!("Length col: {:?}", result.get_length_col()?);
-    
+
     Ok(())
 }
 
@@ -392,16 +384,15 @@ pub fn multithread_global_alignment() {
     let matrix = Matrix::default();
     let profile = Profile::new(query, true, &matrix);
 
-    let aligner = Aligner::new()
-        .profile(profile)
-        .use_stats()
-        .build();
-    
+    let aligner = Aligner::new().profile(profile).use_stats().build();
+
     thread::spawn(move || {
         for reference in refs {
             let result = &aligner.global_with_profile(reference);
             let score = result.get_score();
             assert_eq!(score, query.len() as i32);
         }
-    }).join().unwrap();
+    })
+    .join()
+    .unwrap();
 }

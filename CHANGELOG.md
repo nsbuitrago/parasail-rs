@@ -2,7 +2,13 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
-## 0.4.0 - 2024.03.xx
+## 0.4.1 - 2024.03.11
+
+### Improvements
+
+- code quality for constructing parasail fn names from Aligner builder.
+
+## 0.4.0 - 2024.03.06
 
 ### Features
 
