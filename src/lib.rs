@@ -302,6 +302,7 @@ unsafe impl Sync for Profile {}
 
 /// Aligner builder
 pub struct AlignerBuilder {
+    mode: String,
     matrix: Arc<Matrix>,
     gap_open: i32,
     gap_extend: i32,
@@ -317,6 +318,7 @@ pub struct AlignerBuilder {
 impl Default for AlignerBuilder {
     fn default() -> Self {
         AlignerBuilder {
+            mode: String::from("nw"),
             matrix: Matrix::default().into(),
             gap_open: 5,
             gap_extend: 2,
@@ -332,6 +334,19 @@ impl Default for AlignerBuilder {
 }
 
 impl AlignerBuilder {
+    /// Set alignment mode (nw - Needleman-Wunsch {global}, sg - semi-global, sw - Smith-Watermann
+    /// {local}).
+    pub fn mode(&mut self, mode: &str) -> &mut Self {
+        let valid_modes = vec!["nw", "sg", "sw"];
+        let mode = mode.to_lowercase();
+        assert!(
+            valid_modes.contains(&mode.as_str()),
+            "Invalid alignment mode. Valid modes are: nw, sg, sw."
+        );
+        self.mode = String::from(mode);
+        self
+    }
+
     /// Set scoring matrix.
     pub fn matrix(&mut self, matrix: Matrix) -> &mut Self {
         self.matrix = Arc::new(matrix);
@@ -458,43 +473,6 @@ impl AlignerBuilder {
         self
     }
 
-    /// build aligner
-    pub fn build(&mut self) -> Aligner {
-        Aligner {
-            matrix: Arc::clone(&self.matrix),
-            gap_open: self.gap_open,
-            gap_extend: self.gap_extend,
-            profile: Arc::clone(&self.profile),
-            allow_query_gaps: self.allow_query_gaps.clone(),
-            allow_ref_gaps: self.allow_ref_gaps.clone(),
-            vec_strategy: self.vec_strategy.clone(),
-            use_stats: self.use_stats.clone(),
-            use_table: self.use_table.clone(),
-            use_trace: self.use_trace.clone(),
-        }
-    }
-}
-
-/// Aligner struct for sequence alignment
-pub struct Aligner {
-    matrix: Arc<Matrix>,
-    gap_open: i32,
-    gap_extend: i32,
-    profile: Arc<Profile>,
-    allow_query_gaps: Vec<String>,
-    allow_ref_gaps: Vec<String>,
-    vec_strategy: String,
-    use_stats: String,
-    use_table: String,
-    use_trace: String,
-}
-
-impl Aligner {
-    /// Create a new aligner builder with default fields.
-    pub fn new() -> AlignerBuilder {
-        AlignerBuilder::default()
-    }
-
     /// Helper function for formatting semi-global fn name with correct gap syntax.
     fn get_allowed_gaps(&self, prefix: &str, allowed_gaps_vec: &Vec<String>) -> Vec<String> {
         let mut allowed_gaps = Vec::new();
@@ -515,9 +493,9 @@ impl Aligner {
     }
 
     /// Get the name of the parasail function to use for alignment.
-    fn get_parasail_fn_name(&self, mode: &str, use_profile: bool) -> CString {
+    fn get_parasail_fn_name(&self) -> CString {
         let mut sg_gaps_fn_part = String::new();
-        if mode == "sg" {
+        if self.mode == "sg" {
             let query_gaps_part = self.get_allowed_gaps("q", &self.allow_query_gaps);
             let ref_gaps_part = self.get_allowed_gaps("d", &self.allow_ref_gaps);
             sg_gaps_fn_part = format!("{}{}", query_gaps_part.join(""), ref_gaps_part.join(""));
@@ -529,21 +507,21 @@ impl Aligner {
 
         let profile: &str;
         let stats: &str;
-        if use_profile {
+        if self.profile.is_null() {
+            profile = "";
+            stats = &self.use_stats;
+        } else {
             profile = "_profile";
             if self.profile.use_stats {
                 stats = "_stats";
             } else {
                 stats = "";
             }
-        } else {
-            profile = "";
-            stats = &self.use_stats;
         }
 
         let parasail_fn_name = CString::new(format!(
             "{}{}{}{}{}{}{}_sat",
-            mode,
+            self.mode,
             sg_gaps_fn_part,
             self.use_trace,
             stats,
@@ -556,30 +534,124 @@ impl Aligner {
         parasail_fn_name
     }
 
+    /// build aligner
+    pub fn build(&mut self) -> Aligner {
+        let fn_name = self.get_parasail_fn_name();
+        let parasail_fn: AlignerFn;
+
+        if self.profile.is_null() {
+            unsafe {
+                parasail_fn = AlignerFn::Function(parasail_lookup_function(fn_name.as_ptr()));
+            }
+        } else {
+            unsafe {
+                parasail_fn = AlignerFn::PFunction(parasail_lookup_pfunction(fn_name.as_ptr()));
+            }
+        };
+
+        if parasail_fn.is_none() {
+            panic!(
+                "Parasail function: {}, not found.",
+                fn_name.to_str().unwrap()
+            );
+        }
+
+        Aligner {
+            parasail_fn,
+            mode: self.mode.clone(),
+            matrix: Arc::clone(&self.matrix),
+            gap_open: self.gap_open,
+            gap_extend: self.gap_extend,
+            profile: Arc::clone(&self.profile),
+            allow_query_gaps: self.allow_query_gaps.clone(),
+            allow_ref_gaps: self.allow_ref_gaps.clone(),
+            vec_strategy: self.vec_strategy.clone(),
+            use_stats: self.use_stats.clone(),
+            use_table: self.use_table.clone(),
+            use_trace: self.use_trace.clone(),
+        }
+    }
+}
+
+enum AlignerFn {
+    Function(
+        Option<
+            unsafe extern "C" fn(
+                *const i8,
+                i32,
+                *const i8,
+                i32,
+                i32,
+                i32,
+                *const parasail_matrix_t,
+            ) -> *mut parasail_result_t,
+        >,
+    ),
+    PFunction(
+        Option<
+            unsafe extern "C" fn(
+                *const parasail_profile_t,
+                *const i8,
+                i32,
+                i32,
+                i32,
+            ) -> *mut parasail_result_t,
+        >,
+    ),
+}
+
+impl AlignerFn {
+    fn is_none(&self) -> bool {
+        match self {
+            AlignerFn::Function(f) => f.is_none(),
+            AlignerFn::PFunction(f) => f.is_none(),
+        }
+    }
+}
+
+/// Aligner struct for sequence alignment
+pub struct Aligner {
+    parasail_fn: AlignerFn,
+    pub mode: String,
+    pub matrix: Arc<Matrix>,
+    pub gap_open: i32,
+    pub gap_extend: i32,
+    profile: Arc<Profile>,
+    pub allow_query_gaps: Vec<String>,
+    pub allow_ref_gaps: Vec<String>,
+    pub vec_strategy: String,
+    pub use_stats: String,
+    pub use_table: String,
+    pub use_trace: String,
+}
+
+impl Aligner {
+    /// Create a new aligner builder with default fields.
+    pub fn new() -> AlignerBuilder {
+        AlignerBuilder::default()
+    }
+
     /// Perform alignment between a query and reference sequence.
     /// This is a helper function used by the more specific alignment wrappers.
     /// However, you can call this directly and pass the mode as "nw", "sg", or "sw
     /// for global (Needleman-Wunsch), semi-global, or local (Smith-Watermann) alignment, respectively.
-    pub fn align(&self, query: Option<&[u8]>, reference: &[u8], mode: &str) -> AlignResult {
+    pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> AlignResult {
         let ref_len = reference.len() as i32;
         let reference = CString::new(reference).unwrap();
 
-        if self.profile.is_null() {
-            // use query
-            assert!(
-                query.is_some(),
-                "Query sequence is required for alignment without a profile."
-            );
-            let query = query.unwrap();
-            let query_len = query.len() as i32;
+        // already checked that aligner function f is some variant during build step
+        match self.parasail_fn {
+            AlignerFn::Function(f) => {
+                assert!(
+                    query.is_some(),
+                    "Query sequence is required for alignment without a profile."
+                );
+                let query = query.unwrap();
+                let query_len = query.len() as i32;
 
-            let parasail_fn_name = self.get_parasail_fn_name(mode, false);
-
-            unsafe {
-                let parasail_fn = parasail_lookup_function(parasail_fn_name.as_ptr());
-                let query = CString::new(query).unwrap();
-                if let Some(parasail_fn) = parasail_fn {
-                    let result = parasail_fn(
+                unsafe {
+                    let query = CString::new(query).unwrap();
+                    let result = f.unwrap()(
                         query.as_ptr(),
                         query_len,
                         reference.as_ptr(),
@@ -588,39 +660,26 @@ impl Aligner {
                         self.gap_extend,
                         **self.matrix,
                     );
+
                     AlignResult { inner: result }
-                } else {
-                    panic!(
-                        "Parasail function: {}, not found.",
-                        parasail_fn_name.to_str().unwrap()
-                    );
                 }
             }
-        } else {
-            // use profile
-            assert!(
-                self.vec_strategy == "_striped" || self.vec_strategy == "_scan",
-                "Vectorization strategy must be striped or scan for alignment with a profile."
-            );
+            AlignerFn::PFunction(f) => {
+                assert!(
+                    self.vec_strategy == "_striped" || self.vec_strategy == "_scan",
+                    "Vectorization strategy must be striped or scan for alignment with a profile."
+                );
 
-            let parasail_fn_name = self.get_parasail_fn_name(mode, true);
-
-            unsafe {
-                let parasail_fn = parasail_lookup_pfunction(parasail_fn_name.as_ptr());
-                if let Some(parasail_fn) = parasail_fn {
-                    let result = parasail_fn(
+                unsafe {
+                    let result = f.unwrap()(
                         **self.profile,
                         reference.as_ptr(),
                         ref_len,
                         self.gap_open,
                         self.gap_extend,
                     );
+
                     AlignResult { inner: result }
-                } else {
-                    panic!(
-                        "Parasail function: {}, not found.",
-                        parasail_fn_name.to_str().unwrap()
-                    );
                 }
             }
         }
@@ -628,32 +687,32 @@ impl Aligner {
 
     /// Perform global alignment between a query and reference sequence.
     pub fn global(&self, query: &[u8], reference: &[u8]) -> AlignResult {
-        self.align(Some(query), reference, "nw")
+        self.align(Some(query), reference)
     }
 
     /// Perform global alignment using a query profile and reference sequence.
     pub fn global_with_profile(&self, reference: &[u8]) -> AlignResult {
-        self.align(None, reference, "nw")
+        self.align(None, reference)
     }
 
     /// Perform local alignment between a query and reference sequence.
     pub fn local(&self, query: &[u8], reference: &[u8]) -> AlignResult {
-        self.align(Some(query), reference, "sw")
+        self.align(Some(query), reference)
     }
 
     /// Perform local alignment using a query profile and reference sequence.
     pub fn local_with_profile(&self, reference: &[u8]) -> AlignResult {
-        self.align(None, reference, "sw")
+        self.align(None, reference)
     }
 
     /// Perform semi-global alignment between a query and reference sequence.
     pub fn semi_global(&self, query: &[u8], reference: &[u8]) -> AlignResult {
-        self.align(Some(query), reference, "sw")
+        self.align(Some(query), reference)
     }
 
     /// Perform semi-global alignment using a query profile and reference sequence.
     pub fn semi_global_with_profile(&self, reference: &[u8]) -> AlignResult {
-        self.align(None, reference, "sw")
+        self.align(None, reference)
     }
 }
 

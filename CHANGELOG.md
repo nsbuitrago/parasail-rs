@@ -6,6 +6,7 @@ All notable changes will be documented here in reverse chronological order the h
 
 ### Improvements
 
+- TODO: change aligner fields to be simple (not necessarily copying from the builder)
 - code quality for constructing parasail fn names from Aligner builder.
 
 ## 0.4.0 - 2024.03.06
