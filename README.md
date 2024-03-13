@@ -1,6 +1,8 @@
 # parasail-rs
 
-This crate provides safe Rust bindings and a wrapper to [parasail](), a SIMD pairwise sequence alignment C library. Note that this crate is still under development and is unstable.
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nsbuitrago/parasail-rs/test.yml) ![Crates.io Version](https://img.shields.io/crates/v/parasail-rs)
+
+This crate provides safe Rust bindings and a wrapper to [parasail](https://github.com/jeffdaily/parasail/tree/master), a SIMD pairwise sequence alignment C library. Note that this crate is still under development and is unstable.
 
 ## Usage
 
@@ -11,11 +13,11 @@ Add the latest version of `parasail-rs` to your `Cargo.toml` by running `cargo a
 ```toml
 
 [dependencies]
-parasail-rs = "0.4.0"
+parasail-rs = "0.5.0"
 
 ```
 
-Note that parasail-rs depends on libparasail-sys which will either use an already installed system parasail library or build from source. For more information, please see [libparasail-sys](https://gitlab.com/nsbuitrago/libparasail-sys).
+Note that parasail-rs depends on libparasail-sys which will either use an already installed system parasail library or build from source. For more information, please see [libparasail-sys](https://github.com/nsbuitrago/libparasail-sys).
 
 ### Examples
 
@@ -30,7 +32,7 @@ let query = b"ACGT";
 let reference = b"ACGT";
 let aligner = Aligner::new().build();
 
-aligner.global(query, reference);
+aligner.align(query, reference);
 ```
 
 Using query profile:
@@ -46,10 +48,11 @@ let use_stats = true;
 let query_profile = Profile::new(query, use_stats, Matrix::default());
 let aligner = Aligner::new()
  .profile(query_profile, 5, 2, "striped")
+ .semi_global()
  .build();
 
-let result_1 = aligner.global_with_profile(ref_1);
-let result_2 = aligner.global_with_profile(ref_2);
+let result_1 = aligner.align(ref_1);
+let result_2 = aligner.align(ref_2);
 ```
 
 ## Contributing
@@ -61,8 +64,6 @@ Contributions are more than welcome. Please open an issue or send an email to ns
 If needed, please cite the following paper:
 
 [Daily, Jeff. (2016). Parasail: SIMD C library for global, semi-global, and local pairwise sequence alignments. BMC Bioinformatics, 17(1), 1-11. doi:10.1186/s12859-016-0930-z](https://doi.org/10.1186/s12859-016-0930-z)
-
-The Parasail C library was developed by Jeff Daily.
 
 ## License
 
