@@ -8,13 +8,10 @@ This crate provides safe Rust bindings and a wrapper to [parasail](https://githu
 
 ### Installation
 
-Add the latest version of `parasail-rs` to your `Cargo.toml` by running `cargo add parasail-rs`. Or, add directory to `Cargo.toml`:
+Run the following Cargo command in your project directory:
 
-```toml
-
-[dependencies]
-parasail-rs = "0.5.0"
-
+```bash
+cargo add parasail-rs
 ```
 
 Note that parasail-rs depends on libparasail-sys which will either use an already installed system parasail library or build from source. For more information, please see [libparasail-sys](https://github.com/nsbuitrago/libparasail-sys).
@@ -51,8 +48,8 @@ let aligner = Aligner::new()
  .semi_global()
  .build();
 
-let result_1 = aligner.align(ref_1);
-let result_2 = aligner.align(ref_2);
+let result_1 = aligner.align_with_profile(ref_1);
+let result_2 = aligner.align_with_profile(ref_2);
 ```
 
 ## Contributing

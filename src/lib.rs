@@ -7,12 +7,7 @@
 //!
 //! # Usage
 //!
-//! Add `parasail-rs` to your `Cargo.toml`:
-//!
-//! ```toml
-//! [dependencies]
-//! parasail-rs = "0.5.0"
-//! ```
+//! Install parasail-rs by running `cargo add parasail-rs` in your project directory.
 //!
 //! ## Examples
 //!
@@ -232,7 +227,7 @@ unsafe impl Send for Matrix {}
 #[doc(hidden)]
 unsafe impl Sync for Matrix {}
 
-// Query profile for sequence alignment
+/// Query profile for sequence alignment
 pub struct Profile {
     inner: *mut parasail_profile_t,
     use_stats: bool,
@@ -372,6 +367,25 @@ impl Default for AlignerBuilder {
 }
 
 impl AlignerBuilder {
+    /// Set alignment mode to global (Needleman-Wunsch).
+    pub fn global(&mut self) -> &mut Self {
+        self.mode = String::from("nw");
+        self
+    }
+
+    /// Set alignment mode to semi-global
+    pub fn semi_global(&mut self) -> &mut Self {
+        self.mode = String::from("sg");
+        self
+    }
+
+    /// Set alignment mode to local (Smith-Watermann).
+    pub fn local(&mut self) -> &mut Self {
+        self.mode = String::from("sw");
+        self
+    }
+
+    /// Will be deprecated in future versions. Use `global`, `semi-global`, or `local` methods instead.
     /// Set alignment mode (nw - Needleman-Wunsch {global}, sg - semi-global, sw - Smith-Watermann
     /// {local}).
     /// Example:
@@ -381,6 +395,7 @@ impl AlignerBuilder {
     /// // ...
     /// ```
     pub fn mode(&mut self, mode: &str) -> &mut Self {
+        warn!("The mode method will be deprecated in future versions. Use global, semi-global, or local methods instead.");
         let valid_modes = vec!["nw", "sg", "sw"];
         let mode = mode.to_lowercase();
         assert!(
@@ -448,8 +463,28 @@ impl AlignerBuilder {
         self
     }
 
+    /// Use striped vectorization method
+    pub fn striped(&mut self) -> &mut Self {
+        self.vec_strategy = String::from("_striped");
+        self
+    }
+
+    /// Use scan vectorization method
+    pub fn scan(&mut self) -> &mut Self {
+        self.vec_strategy = String::from("_scan");
+        self
+    }
+
+    /// Use diagonal vectorization method
+    pub fn diag(&mut self) -> &mut Self {
+        self.vec_strategy = String::from("_diag");
+        self
+    }
+
+    /// Will be deprecated in future versions. Use `striped`, `scan`, or `diag` methods instead.
     /// Set vectorization strategy for alignment. By default, striped is used.
     pub fn vec_strategy(&mut self, vec_strategy: &str) -> &mut Self {
+        warn!("The vec_strategy method will be deprecated in future versions. Use striped, scan, or diag methods instead.");
         let valid_strategies = vec!["striped", "scan", "diag"];
         let vec_strategy = vec_strategy.to_lowercase();
         assert!(

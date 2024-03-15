@@ -2,6 +2,13 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.5.1 - 2024.03.13
+
+### Features
+
+- Add `global`, `semi_global`, and `local` methods to `AlignerBuilder` to set alignment algorithm.
+- Add `striped`, `scan`, and `diag` methods to `AlignerBuilder` to set vectorization method. 
+
 ## 0.5.0 - 2024.03.11
 
 ### Breaking Changes

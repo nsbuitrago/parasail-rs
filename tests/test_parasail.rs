@@ -66,10 +66,44 @@ pub fn global_alignment() {
     assert_eq!(result.get_end_ref(), checks - 1);
     assert!(result.is_global());
     assert!(!result.is_local());
+    assert!(!result.is_semi_global());
     assert!(result.is_striped());
+}
 
-    // assert_eq!(result.get_matches(), checks);
-    // assert_eq!(result.get_length(), checks);
+#[test]
+pub fn semi_global_alignment() {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().semi_global().build();
+    let result = aligner.align(Some(query), reference);
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(!result.is_global());
+    assert!(!result.is_local());
+    assert!(result.is_semi_global());
+    assert!(result.is_striped());
+}
+
+#[test]
+pub fn local_alignment() {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().local().build();
+    let result = aligner.align(Some(query), reference);
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(!result.is_global());
+    assert!(result.is_local());
+    assert!(!result.is_semi_global());
+    assert!(result.is_striped());
 }
 
 #[test]
@@ -77,6 +111,40 @@ pub fn global_with_stats() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_stats().build();
+    let result = aligner.align(Some(query), reference);
+
+    let checks = query.len() as i32;
+    let n_matches = result.get_matches()?;
+    let align_len = result.get_length()?;
+
+    assert_eq!(n_matches, checks);
+    assert_eq!(align_len, checks);
+
+    Ok(())
+}
+
+#[test]
+pub fn semi_global_with_stats() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().semi_global().use_stats().build();
+    let result = aligner.align(Some(query), reference);
+
+    let checks = query.len() as i32;
+    let n_matches = result.get_matches()?;
+    let align_len = result.get_length()?;
+
+    assert_eq!(n_matches, checks);
+    assert_eq!(align_len, checks);
+
+    Ok(())
+}
+
+#[test]
+pub fn local_with_stats() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().local().use_stats().build();
     let result = aligner.align(Some(query), reference);
 
     let checks = query.len() as i32;
@@ -375,6 +443,51 @@ pub fn global_with_profile() {
     assert!(result.is_striped());
     assert!(result.is_stats());
     assert!(!result.is_local());
+    assert!(!result.is_semi_global());
+}
+
+#[test]
+pub fn semi_global_with_profile() {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let matrix = Matrix::default();
+    let profile = Profile::new(query, true, &matrix);
+
+    let aligner = Aligner::new()
+        .profile(profile)
+        .use_stats()
+        .vec_strategy("striped")
+        .semi_global()
+        .build();
+
+    let result = aligner.align(None, reference);
+    assert!(result.is_semi_global());
+    assert!(result.is_striped());
+    assert!(result.is_stats());
+    assert!(!result.is_local());
+    assert!(!result.is_global());
+}
+
+#[test]
+pub fn local_with_profile() {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let matrix = Matrix::default();
+    let profile = Profile::new(query, true, &matrix);
+
+    let aligner = Aligner::new()
+        .profile(profile)
+        .use_stats()
+        .vec_strategy("striped")
+        .local()
+        .build();
+
+    let result = aligner.align(None, reference);
+    assert!(result.is_local());
+    assert!(result.is_striped());
+    assert!(result.is_stats());
+    assert!(!result.is_global());
+    assert!(!result.is_semi_global());
 }
 
 #[test]
