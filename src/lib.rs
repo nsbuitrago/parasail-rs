@@ -67,11 +67,32 @@ use libparasail_sys::{
 };
 
 use log::warn;
-use std::ffi::{CString, IntoStringError};
-use std::io;
+use std::ffi::{CString, IntoStringError, NulError};
 use std::ops::Deref;
+use std::path::Path;
 use std::sync::Arc;
+use std::{io, slice};
 use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum MatrixError<'a> {
+    #[error("Error creating matrix: {0}")]
+    CreateError(#[from] NulError),
+    #[error("Error creating matrix from lookup: {0} matrix not found.")]
+    LookupError(String),
+    #[error("Error creating matrix from file: {0}")]
+    FromFileError(&'a Path),
+    #[error("File not found: {0}")]
+    FileNotFound(&'a Path),
+    #[error("Error creating PSSM matrix. Invalid alphabet, values, or rows.")]
+    CreatePssmError,
+    #[error("Error converting square matrix to PSSM. Invalid query sequence.")]
+    ConversionError,
+    #[error("Error setting value on substitution matrix. Cannot set value on null matrix.")]
+    CopyError,
+    #[error("Error setting value on substitution matrix. Invalid x or y value.")]
+    SetValueError,
+}
 
 #[derive(Error, Debug)]
 pub enum CigarError {
@@ -96,14 +117,18 @@ pub struct Matrix {
 impl Matrix {
     /// Create a new scoring matrix from an alphabet and match/mismatch scores.
     /// Note that match score should be a positive integer, while mismatch score should be a negative integer.
-    pub fn create(alphabet: &[u8], match_score: i32, mismatch_score: i32) -> Self {
+    pub fn create(
+        alphabet: &[u8],
+        match_score: i32,
+        mismatch_score: i32,
+    ) -> Result<Self, MatrixError> {
         assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
         unsafe {
-            let alphabet = &CString::new(alphabet).unwrap();
-            Self {
+            let alphabet = &CString::new(alphabet)?;
+            Ok(Matrix {
                 inner: parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score),
                 builtin: false,
-            }
+            })
         }
     }
 
@@ -111,14 +136,21 @@ impl Matrix {
     /// The matrix name should be one of the following:
     /// - blosum{30, 35, 40, 45, 50, 55, 60, 62, 65, 70, 75, 80, 85, 90, 95, 100}
     /// - pam{10-500 in steps of 10}
-    pub fn from(matrix_name: &str) -> Self {
+    pub fn from(matrix_name: &str) -> Result<Self, MatrixError> {
+        let matrix: *const parasail_matrix_t;
         unsafe {
-            let matrix = parasail_matrix_lookup(matrix_name.as_ptr() as *const i8);
-            Self {
-                inner: matrix,
-                builtin: true,
-            }
+            let matrix_name = CString::new(matrix_name)?;
+            matrix = parasail_matrix_lookup(matrix_name.as_ptr());
         }
+
+        if matrix.is_null() {
+            return Err(MatrixError::LookupError(matrix_name.to_string()));
+        }
+
+        Ok(Self {
+            inner: matrix,
+            builtin: true,
+        })
     }
 
     /// Create a new scoring matrix from a file.
@@ -173,24 +205,43 @@ impl Matrix {
     // I  -5  -7   7   1   0  -2   3  -5  -6  -5   0  -4  -4  -1  -6   3  -6  -6  -6  -6
     //
     /// Create a new scoring matrix from file.
-    pub fn from_file(file: &str) -> Self {
-        let file = CString::new(file).unwrap();
+    pub fn from_file(file: &str) -> Result<Self, MatrixError> {
+        let filepath = std::path::Path::new(file);
+        if !filepath.exists() {
+            return Err(MatrixError::FileNotFound(filepath));
+        }
+
+        let file = CString::new(file)?;
+
         unsafe {
-            Matrix {
+            let matrix = parasail_matrix_from_file(file.as_ptr());
+
+            if matrix.is_null() {
+                return Err(MatrixError::FromFileError(filepath));
+            }
+
+            Ok(Matrix {
                 inner: parasail_matrix_from_file(file.as_ptr()),
                 builtin: false,
-            }
+            })
         }
     }
 
     /// Create a new scoring matrix from a PSSM (position-specific scoring matrix).
-    pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Self {
-        let alphabet = CString::new(alphabet).unwrap();
+    pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Result<Self, MatrixError> {
+        let alphabet = CString::new(alphabet)?;
+
         unsafe {
-            Self {
-                inner: parasail_matrix_pssm_create(alphabet.as_ptr(), values.as_ptr(), rows),
-                builtin: false,
+            let matrix = parasail_matrix_pssm_create(alphabet.as_ptr(), values.as_ptr(), rows);
+
+            if matrix.is_null() {
+                return Err(MatrixError::CreatePssmError);
             }
+
+            Ok(Self {
+                inner: matrix,
+                builtin: false,
+            })
         }
     }
 
