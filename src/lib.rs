@@ -45,30 +45,41 @@
 //!
 
 use libparasail_sys::{
-    parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm,
+    parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_lookup_function,
+    parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_copy,
     parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file,
-    parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t,
-    parasail_profile_create_sat, parasail_profile_create_stats_sat, parasail_profile_free,
-    parasail_profile_t, parasail_result_free, parasail_result_get_end_query,
-    parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_length_col,
-    parasail_result_get_length_row, parasail_result_get_length_table, parasail_result_get_matches,
-    parasail_result_get_matches_col, parasail_result_get_matches_row,
-    parasail_result_get_matches_table, parasail_result_get_score, parasail_result_get_score_col,
-    parasail_result_get_score_row, parasail_result_get_score_table, parasail_result_get_similar,
-    parasail_result_get_similar_col, parasail_result_get_similar_row,
-    parasail_result_get_similar_table, parasail_result_get_trace_table, parasail_result_is_banded,
-    parasail_result_is_blocked, parasail_result_is_diag, parasail_result_is_nw,
-    parasail_result_is_rowcol, parasail_result_is_saturated, parasail_result_is_scan,
-    parasail_result_is_sg, parasail_result_is_stats, parasail_result_is_stats_rowcol,
-    parasail_result_is_stats_table, parasail_result_is_striped, parasail_result_is_sw,
-    parasail_result_is_table, parasail_result_is_trace, parasail_result_t,
+    parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_set_value,
+    parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat,
+    parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_cigar,
+    parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length,
+    parasail_result_get_length_col, parasail_result_get_length_row,
+    parasail_result_get_length_table, parasail_result_get_matches, parasail_result_get_matches_col,
+    parasail_result_get_matches_row, parasail_result_get_matches_table, parasail_result_get_score,
+    parasail_result_get_score_col, parasail_result_get_score_row, parasail_result_get_score_table,
+    parasail_result_get_similar, parasail_result_get_similar_col, parasail_result_get_similar_row,
+    parasail_result_get_similar_table, parasail_result_get_trace_table,
+    parasail_result_get_traceback, parasail_result_is_banded, parasail_result_is_blocked,
+    parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol,
+    parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg,
+    parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table,
+    parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table,
+    parasail_result_is_trace, parasail_result_t, parasail_traceback_generic,
 };
 
 use log::warn;
-use std::ffi::CString;
+use std::ffi::{CString, IntoStringError};
 use std::io;
 use std::ops::Deref;
 use std::sync::Arc;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum CigarError {
+    #[error("Error converting CIGAR string to Rust string: {0}")]
+    IntoStringError(#[from] IntoStringError),
+    #[error("Traceback set to: {0}. Enable traceback with `use_trace` method on AlignerBuilder to get CIGAR.")]
+    NoTracebackError(bool),
+}
 
 /// Substitution matrix for sequence alignment.
 /// Matrices can be created from:
@@ -192,6 +203,15 @@ impl Matrix {
                 pssm_query_string.as_ptr(),
                 pssm_query.len() as i32,
             );
+        }
+    }
+
+    /// Replace value in substitution matrix.
+    pub fn set_value(&mut self, x: i32, y: i32, value: i32) {
+        unsafe {
+            let matrix = parasail_matrix_copy(self.inner);
+            parasail_matrix_set_value(matrix, x, y, value);
+            self.inner = matrix
         }
     }
 }
@@ -385,27 +405,6 @@ impl AlignerBuilder {
         self
     }
 
-    /// Will be deprecated in future versions. Use `global`, `semi-global`, or `local` methods instead.
-    /// Set alignment mode (nw - Needleman-Wunsch {global}, sg - semi-global, sw - Smith-Watermann
-    /// {local}).
-    /// Example:
-    /// ```rust, no_run
-    /// use parasail_rs::Aligner;
-    /// let global_aligner = Aligner::new().mode("nw").build();
-    /// // ...
-    /// ```
-    pub fn mode(&mut self, mode: &str) -> &mut Self {
-        warn!("The mode method will be deprecated in future versions. Use global, semi-global, or local methods instead.");
-        let valid_modes = vec!["nw", "sg", "sw"];
-        let mode = mode.to_lowercase();
-        assert!(
-            valid_modes.contains(&mode.as_str()),
-            "Invalid alignment mode. Valid modes are: nw, sg, sw."
-        );
-        self.mode = String::from(mode);
-        self
-    }
-
     /// Set scoring matrix. The default is an identity matrix for DNA sequences.
     /// For more information on creating matrices, see the [Matrix](https://docs.rs/parasail-rs/latest/parasail_rs/struct.Matrix.html) struct.
     pub fn matrix(&mut self, matrix: Matrix) -> &mut Self {
@@ -478,20 +477,6 @@ impl AlignerBuilder {
     /// Use diagonal vectorization method
     pub fn diag(&mut self) -> &mut Self {
         self.vec_strategy = String::from("_diag");
-        self
-    }
-
-    /// Will be deprecated in future versions. Use `striped`, `scan`, or `diag` methods instead.
-    /// Set vectorization strategy for alignment. By default, striped is used.
-    pub fn vec_strategy(&mut self, vec_strategy: &str) -> &mut Self {
-        warn!("The vec_strategy method will be deprecated in future versions. Use striped, scan, or diag methods instead.");
-        let valid_strategies = vec!["striped", "scan", "diag"];
-        let vec_strategy = vec_strategy.to_lowercase();
-        assert!(
-            valid_strategies.contains(&vec_strategy.as_str()),
-            "Invalid vectorization strategy. Valid strategies are: striped, scan, diag."
-        );
-        self.vec_strategy = format!("_{}", vec_strategy.to_string());
         self
     }
 
@@ -668,7 +653,8 @@ impl Aligner {
         AlignerBuilder::default()
     }
 
-    /// Perform alignment between a query and reference sequence.
+    /// Perform alignment between a query and reference sequence. If profile was set while building
+    /// the aligner, pass None as the query sequence. Otherwise, wrap the query sequence in a Some variant (i.e. Some(query)).
     pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> AlignResult {
         let ref_len = reference.len() as i32;
         let reference = CString::new(reference).unwrap();
@@ -695,7 +681,10 @@ impl Aligner {
                         **self.matrix,
                     );
 
-                    AlignResult { inner: result }
+                    AlignResult {
+                        inner: result,
+                        matrix: **self.matrix,
+                    }
                 }
             }
             AlignerFn::PFunction(f) => unsafe {
@@ -707,15 +696,40 @@ impl Aligner {
                     self.gap_extend,
                 );
 
-                AlignResult { inner: result }
+                AlignResult {
+                    inner: result,
+                    matrix: **self.matrix,
+                }
             },
         }
     }
 }
 
+/// CIGAR string for sequence alignment.
+struct CigarString {
+    inner: *mut parasail_cigar_t,
+}
+
+#[doc(hidden)]
+impl Drop for CigarString {
+    fn drop(&mut self) {
+        unsafe {
+            parasail_cigar_free(self.inner);
+        }
+    }
+}
+
+/// Traceback for sequence alignment.
+pub struct Traceback {
+    pub query: String,
+    pub comparison: String,
+    pub reference: String,
+}
+
 /// Sequence alignment result.
 pub struct AlignResult {
     inner: *mut parasail_result_t,
+    matrix: *const parasail_matrix_t,
 }
 
 impl AlignResult {
@@ -939,6 +953,124 @@ impl AlignResult {
     //         Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
     //     }
     // }
+
+    /// Get alignment strings and statistics
+    pub fn print_traceback(&self, query: &[u8], reference: &[u8]) -> Result<(), io::Error> {
+        if self.is_trace() {
+            let query_len = query.len() as i32;
+            let ref_len = reference.len() as i32;
+            let query = CString::new(query).unwrap();
+            let reference = CString::new(reference).unwrap();
+            let query_str = CString::new("Query:").unwrap();
+            let ref_str = CString::new("Target:").unwrap();
+            let match_char = CString::new("|").unwrap();
+            let mismatch_char = CString::new(" ").unwrap();
+            let width = 80;
+            let name_width = 7;
+            let use_stats = 1;
+            unsafe {
+                parasail_traceback_generic(
+                    query.as_ptr(),
+                    query_len,
+                    reference.as_ptr(),
+                    ref_len,
+                    query_str.as_ptr(),
+                    ref_str.as_ptr(),
+                    self.matrix,
+                    self.inner,
+                    *match_char.as_ptr(),
+                    *mismatch_char.as_ptr(),
+                    *mismatch_char.as_ptr(),
+                    width,
+                    name_width,
+                    use_stats,
+                );
+
+                Ok(())
+            }
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Alignment string is not available without setting use_trace",
+            ))
+        }
+    }
+
+    /// Get alignment strings.
+    pub fn get_traceback_strings(
+        &self,
+        query: &[u8],
+        reference: &[u8],
+    ) -> Result<Traceback, io::Error> {
+        if self.is_trace() {
+            let query_len = query.len() as i32;
+            let ref_len = reference.len() as i32;
+            let query = CString::new(query).unwrap();
+            let reference = CString::new(reference).unwrap();
+            let match_char = CString::new("|").unwrap();
+            let mismatch_char = CString::new(" ").unwrap();
+            unsafe {
+                let alignment = parasail_result_get_traceback(
+                    self.inner,
+                    query.as_ptr(),
+                    query_len,
+                    reference.as_ptr(),
+                    ref_len,
+                    self.matrix,
+                    *match_char.as_ptr(),
+                    *mismatch_char.as_ptr(),
+                    *mismatch_char.as_ptr(),
+                );
+
+                let query_traceback = CString::from_raw((*alignment).query).into_string().unwrap();
+                let comparison_traceback =
+                    CString::from_raw((*alignment).comp).into_string().unwrap();
+                let reference_traceback =
+                    CString::from_raw((*alignment).ref_).into_string().unwrap();
+
+                Ok(Traceback {
+                    query: query_traceback,
+                    comparison: comparison_traceback,
+                    reference: reference_traceback,
+                })
+            }
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "Alignment string is not available without setting use_trace",
+            ))
+        }
+    }
+
+    /// Get CIGAR string.
+    pub fn get_cigar(&self, query: &[u8], reference: &[u8]) -> Result<String, CigarError> {
+        if self.is_trace() {
+            let query_len = query.len() as i32;
+            let query = CString::new(query).unwrap();
+            let ref_len = reference.len() as i32;
+            let reference = CString::new(reference).unwrap();
+
+            let cigar: Result<String, IntoStringError>;
+            unsafe {
+                let cigar_encoded = CigarString {
+                    inner: parasail_result_get_cigar(
+                        self.inner,
+                        query.as_ptr(),
+                        query_len,
+                        reference.as_ptr(),
+                        ref_len,
+                        self.matrix,
+                    ),
+                };
+
+                cigar = CString::from_raw(parasail_cigar_decode(cigar_encoded.inner)).into_string();
+            }
+
+            Ok(cigar?)
+        } else {
+            Err(CigarError::NoTracebackError(self.is_trace()))
+        }
+    }
 
     /// Check if the alignment mode is global.
     pub fn is_global(&self) -> bool {

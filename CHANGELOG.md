@@ -2,6 +2,20 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.6.0 - 2024.03.18
+
+## Features
+
+- Add `set_value` method to change values in substitution matrices.
+- Add `print_traceback` method to print alignment strings and statistics.
+- Add `get_traceback_strings` method on AlignResult to return a Traceback struct (query, ref, and comparison strings).
+- Add `get_cigar` method to recover CIGAR strings.
+
+## Breaking Changes
+
+- Removed `mode` method from AlignerBuilder. Use `global`, `semi_global`, or `local` methods instead.
+- Removed `vec_strategy` method from AlignerBuilder. Use `striped`, `scan`, and `diag` methods instead.
+
 ## 0.5.1 - 2024.03.13
 
 ### Features

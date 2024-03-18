@@ -7,7 +7,7 @@ pub fn matrix_construction() {
     Matrix::default();
 
     // custom matrix
-    Matrix::create(b"ACGT", 3, -2);
+    let mut matrix = Matrix::create(b"ACGT", 3, -2);
 
     // from name
     Matrix::from("blosum62");
@@ -24,6 +24,8 @@ pub fn matrix_construction() {
     // Matrix::create_pssm("AC", values, rows);
 
     // convert square to pssm
+    //
+    matrix.set_value(0, 0, 5);
 }
 
 #[test]
@@ -47,7 +49,7 @@ pub fn aligner_construction() {
         .gap_extend(1)
         .profile(Profile::default())
         .allow_query_gaps(vec![String::from("prefix"), String::from("suffix")])
-        .vec_strategy("striped")
+        .striped()
         .use_stats()
         .build();
 }
@@ -426,6 +428,44 @@ pub fn trace_table() -> Result<(), Box<dyn std::error::Error>> {
 // }
 
 #[test]
+pub fn get_traceback_strings() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().use_trace().build();
+    let result = aligner.align(Some(query), reference);
+    let traceback = result.get_traceback_strings(query, reference)?;
+    println!("Query:     {}", traceback.query);
+    println!("           {}", traceback.comparison);
+    println!("Reference: {}", traceback.reference);
+
+    Ok(())
+}
+
+#[test]
+pub fn print_traceback() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().use_trace().build();
+    let result = aligner.align(Some(query), reference);
+    result.print_traceback(query, reference)?;
+
+    Ok(())
+}
+
+#[test]
+pub fn get_cigar() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().use_trace().build();
+    let result = aligner.align(Some(query), reference);
+    let cigar_string = result.get_cigar(query, reference)?;
+
+    println!("CIGAR: {}", cigar_string);
+
+    Ok(())
+}
+
+#[test]
 pub fn global_with_profile() {
     let query = b"ACGT";
     let reference = b"ACGT";
@@ -435,7 +475,7 @@ pub fn global_with_profile() {
     let aligner = Aligner::new()
         .profile(profile)
         .use_stats()
-        .vec_strategy("striped")
+        .striped()
         .build();
 
     let result = aligner.align(None, reference);
@@ -456,7 +496,7 @@ pub fn semi_global_with_profile() {
     let aligner = Aligner::new()
         .profile(profile)
         .use_stats()
-        .vec_strategy("striped")
+        .striped()
         .semi_global()
         .build();
 
@@ -478,7 +518,7 @@ pub fn local_with_profile() {
     let aligner = Aligner::new()
         .profile(profile)
         .use_stats()
-        .vec_strategy("striped")
+        .striped()
         .local()
         .build();
 

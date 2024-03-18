@@ -29,7 +29,7 @@ let query = b"ACGT";
 let reference = b"ACGT";
 let aligner = Aligner::new().build();
 
-aligner.align(query, reference);
+aligner.align(Some(query), reference);
 ```
 
 Using query profile:
@@ -48,8 +48,8 @@ let aligner = Aligner::new()
  .semi_global()
  .build();
 
-let result_1 = aligner.align_with_profile(ref_1);
-let result_2 = aligner.align_with_profile(ref_2);
+let result_1 = aligner.align(None, ref_1);
+let result_2 = aligner.align(None, ref_2);
 ```
 
 ## Contributing
