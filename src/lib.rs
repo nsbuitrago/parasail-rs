@@ -15,12 +15,16 @@
 //! ```rust,no_run
 //! use parasail_rs::{Aligner};
 //!
-//! let query = b"ACGT";
-//! let reference = b"ACGT";
-//! let aligner = Aligner::new().build();
+//! fn align() -> Result<(), Box<dyn std::error::Error>> {
+//!     let query = b"ACGT";
+//!     let reference = b"ACGT";
+//!     let aligner = Aligner::new().build();
 
-//! let result = aligner.align(Some(query), reference);
-//! println!("Alignment Score: {}", result.get_score());
+//!     let result = aligner.align(Some(query), reference)?;
+//!     println!("Alignment Score: {}", result.get_score());
+//!
+//!     Ok(())
+//! }
 //! ```
 //!
 //! ### Using query profile
@@ -39,8 +43,8 @@
 //!         .profile(query_profile)
 //!         .build();
 //!
-//!     let result_1 = aligner.align(None, ref_1);
-//!     let result_2 = aligner.align(None, ref_2);
+//!     let result_1 = aligner.align(None, ref_1)?;
+//!     let result_2 = aligner.align(None, ref_2)?;
 //!
 //!     println!("Score 1: {}", result_1.get_score());
 //!     println!("Score 2: {}", result_2.get_score());
@@ -99,6 +103,12 @@ pub enum ProfileError {
     CreateError(#[from] NulError),
     #[error("Error creating profile. Null profile returned from parasail.")]
     NullProfile,
+}
+
+#[derive(Error, Debug)]
+pub enum AlignError {
+    #[error("Alignment initialization error: {0}")]
+    AlignInitError(#[from] NulError),
 }
 
 #[derive(Error, Debug)]
@@ -785,11 +795,10 @@ impl Aligner {
 
     /// Perform alignment between a query and reference sequence. If profile was set while building
     /// the aligner, pass None as the query sequence. Otherwise, wrap the query sequence in a Some variant (i.e. Some(query)).
-    pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> AlignResult {
+    pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> Result<AlignResult, AlignError> {
         let ref_len = reference.len() as i32;
-        let reference = CString::new(reference).unwrap();
+        let reference = CString::new(reference)?;
 
-        // already checked that aligner function f is some variant during build step
         match self.parasail_fn {
             AlignerFn::Function(f) => {
                 assert!(
@@ -800,7 +809,8 @@ impl Aligner {
                 let query_len = query.len() as i32;
 
                 unsafe {
-                    let query = CString::new(query).unwrap();
+                    let query = CString::new(query)?;
+                    // already checked that aligner function f is some variant during build step
                     let result = f.unwrap()(
                         query.as_ptr(),
                         query_len,
@@ -811,13 +821,14 @@ impl Aligner {
                         **self.matrix,
                     );
 
-                    AlignResult {
+                    Ok(AlignResult {
                         inner: result,
                         matrix: **self.matrix,
-                    }
+                    })
                 }
             }
             AlignerFn::PFunction(f) => unsafe {
+                // already checked that aligner function f is some variant during build step
                 let result = f.unwrap()(
                     **self.profile,
                     reference.as_ptr(),
@@ -826,10 +837,10 @@ impl Aligner {
                     self.gap_extend,
                 );
 
-                AlignResult {
+                Ok(AlignResult {
                     inner: result,
                     matrix: **self.matrix,
-                }
+                })
             },
         }
     }

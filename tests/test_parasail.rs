@@ -62,11 +62,11 @@ pub fn aligner_construction() {
 }
 
 #[test]
-pub fn global_alignment() {
+pub fn global_alignment() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
 
     let checks = query.len() as i32;
 
@@ -77,14 +77,16 @@ pub fn global_alignment() {
     assert!(!result.is_local());
     assert!(!result.is_semi_global());
     assert!(result.is_striped());
+
+    Ok(())
 }
 
 #[test]
-pub fn semi_global_alignment() {
+pub fn semi_global_alignment() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().semi_global().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
 
     let checks = query.len() as i32;
 
@@ -95,14 +97,16 @@ pub fn semi_global_alignment() {
     assert!(!result.is_local());
     assert!(result.is_semi_global());
     assert!(result.is_striped());
+
+    Ok(())
 }
 
 #[test]
-pub fn local_alignment() {
+pub fn local_alignment() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().local().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
 
     let checks = query.len() as i32;
 
@@ -113,6 +117,8 @@ pub fn local_alignment() {
     assert!(result.is_local());
     assert!(!result.is_semi_global());
     assert!(result.is_striped());
+
+    Ok(())
 }
 
 #[test]
@@ -120,7 +126,7 @@ pub fn global_with_stats() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_stats().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
 
     let checks = query.len() as i32;
     let n_matches = result.get_matches()?;
@@ -137,7 +143,7 @@ pub fn semi_global_with_stats() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().semi_global().use_stats().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
 
     let checks = query.len() as i32;
     let n_matches = result.get_matches()?;
@@ -154,7 +160,7 @@ pub fn local_with_stats() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().local().use_stats().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
 
     let checks = query.len() as i32;
     let n_matches = result.get_matches()?;
@@ -174,7 +180,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     let aligner = Aligner::new().use_table().build();
     let default_score = 1;
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(!result.is_stats());
     assert!(!result.is_stats_table());
@@ -183,7 +189,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     // one-off alignment with stats
     let aligner = Aligner::new().use_stats().use_table().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_stats());
     assert!(result.is_stats_table());
     assert!(result.is_table());
@@ -196,7 +202,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
 
     let aligner_w_profile = Aligner::new().profile(profile).use_table().build();
 
-    let result_w_profile = aligner_w_profile.align(None, reference);
+    let result_w_profile = aligner_w_profile.align(None, reference)?;
 
     assert!(result_w_profile.is_table());
     assert!(!result_w_profile.is_stats());
@@ -211,7 +217,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
         .use_table()
         .build();
 
-    let result_w_profile = aligner_w_profile.align(None, reference);
+    let result_w_profile = aligner_w_profile.align(None, reference)?;
 
     assert!(result_w_profile.is_stats());
     assert!(result_w_profile.is_stats_table());
@@ -229,7 +235,7 @@ pub fn matches_table() -> Result<(), Box<dyn std::error::Error>> {
     let aligner = Aligner::new().use_table().use_stats().build();
     let default_score = 1;
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
@@ -245,7 +251,7 @@ pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
@@ -261,7 +267,7 @@ pub fn length_table() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
@@ -277,7 +283,7 @@ pub fn score_row() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
@@ -293,7 +299,7 @@ pub fn matches_row() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
@@ -309,7 +315,7 @@ pub fn similar_row() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
@@ -325,7 +331,7 @@ pub fn length_row() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
@@ -341,7 +347,7 @@ pub fn score_col() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
@@ -357,7 +363,7 @@ pub fn match_col() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
@@ -373,7 +379,7 @@ pub fn similar_col() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
@@ -389,7 +395,7 @@ pub fn length_col() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_last_rowcol().use_stats().build();
 
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
@@ -403,7 +409,7 @@ pub fn trace_table() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_trace().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     assert!(result.is_trace());
     println!("Trace table: {:?}", result.get_trace_table()?);
 
@@ -439,7 +445,7 @@ pub fn get_traceback_strings() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_trace().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     let traceback = result.get_traceback_strings(query, reference)?;
     println!("Query:     {}", traceback.query);
     println!("           {}", traceback.comparison);
@@ -453,7 +459,7 @@ pub fn print_traceback() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_trace().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     result.print_traceback(query, reference)?;
 
     Ok(())
@@ -464,7 +470,7 @@ pub fn get_cigar() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_trace().build();
-    let result = aligner.align(Some(query), reference);
+    let result = aligner.align(Some(query), reference)?;
     let cigar_string = result.get_cigar(query, reference)?;
 
     println!("CIGAR: {}", cigar_string);
@@ -485,7 +491,7 @@ pub fn global_with_profile() -> Result<(), Box<dyn std::error::Error>> {
         .striped()
         .build();
 
-    let result = aligner.align(None, reference);
+    let result = aligner.align(None, reference)?;
     assert!(result.is_global());
     assert!(result.is_striped());
     assert!(result.is_stats());
@@ -509,7 +515,7 @@ pub fn semi_global_with_profile() -> Result<(), Box<dyn std::error::Error>> {
         .semi_global()
         .build();
 
-    let result = aligner.align(None, reference);
+    let result = aligner.align(None, reference)?;
     assert!(result.is_semi_global());
     assert!(result.is_striped());
     assert!(result.is_stats());
@@ -533,7 +539,7 @@ pub fn local_with_profile() -> Result<(), Box<dyn std::error::Error>> {
         .local()
         .build();
 
-    let result = aligner.align(None, reference);
+    let result = aligner.align(None, reference)?;
     assert!(result.is_local());
     assert!(result.is_striped());
     assert!(result.is_stats());
@@ -554,9 +560,15 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
 
     thread::spawn(move || {
         for reference in refs {
-            let result = &aligner.align(None, reference);
-            let score = result.get_score();
-            assert_eq!(score, query.len() as i32);
+            match &aligner.align(None, reference) {
+                Ok(result) => {
+                    let score = result.get_score();
+                    assert_eq!(score, query.len() as i32);
+                }
+                Err(e) => {
+                    println!("Alignment Error: {}", e);
+                }
+            }
         }
     })
     .join()

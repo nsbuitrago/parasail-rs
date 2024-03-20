@@ -20,6 +20,7 @@ All notable changes will be documented here in reverse chronological order the h
 - Matrix methods returning results:
     - `create`, `from`, and `create_pssm`, `from_file` now return `Result<Self, MatrixError>`.
 - Profile `create` method now returns `Result<Self, ProfileError>`.
+- `align` method returns `Result<AlignResult, AlignError>`.
 
 ## 0.5.1 - 2024.03.13
 
