@@ -2,30 +2,40 @@ use parasail_rs::{Aligner, Matrix, Profile};
 use std::thread;
 
 #[test]
-pub fn matrix_construction() {
+pub fn matrix_shenanigans() {
+    let matrix = Matrix::default();
+    matrix.get_matrix_size();
+}
+
+#[test]
+pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
     // default matrix
     Matrix::default();
 
     // custom matrix
-    let mut matrix = Matrix::create(b"ACGT", 3, -2);
+    let mut matrix = Matrix::create(b"ACGT", 3, -2)?;
+    matrix.set_value(2, 2, 100);
+    matrix.get_matrix_size();
 
     // from name
-    Matrix::from("blosum62");
+    let blosum62 = Matrix::from("blosum62")?;
+
+    // convert to PSSM
+    let _blosum62_pssm = blosum62.to_pssm(b"ACGT");
 
     // square matrix from file
-    Matrix::from_file("./tests/square.txt");
+    Matrix::from_file("./tests/square.txt")?;
 
     // pssm from file
-    Matrix::from_file("./tests/pssm.txt");
+    Matrix::from_file("./tests/pssm.txt")?;
 
     // PSSM
-    // let values = vec![1, 2, 3, 4];
-    // let rows = vec![b'A', b'C'];
-    // Matrix::create_pssm("AC", values, rows);
+    let pssm_alphabet = "abcdef";
+    let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
+    let rows = 2;
+    Matrix::create_pssm(pssm_alphabet, values, rows);
 
-    // convert square to pssm
-    //
-    matrix.set_value(0, 0, 5);
+    Ok(())
 }
 
 #[test]
@@ -184,7 +194,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
 
     // alignment with profile, without stats
     let custom_score = 3;
-    let matrix = Matrix::create(b"ACGT", custom_score, -2);
+    let matrix = Matrix::create(b"ACGT", custom_score, -2)?;
     let profile = Profile::new(query, false, &matrix);
 
     let aligner_w_profile = Aligner::new().profile(profile).use_table().build();

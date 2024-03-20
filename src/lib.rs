@@ -86,12 +86,6 @@ pub enum MatrixError<'a> {
     FileNotFound(&'a Path),
     #[error("Error creating PSSM matrix. Invalid alphabet, values, or rows.")]
     CreatePssmError,
-    #[error("Error converting square matrix to PSSM. Invalid query sequence.")]
-    ConversionError,
-    #[error("Error setting value on substitution matrix. Cannot set value on null matrix.")]
-    CopyError,
-    #[error("Error setting value on substitution matrix. Invalid x or y value.")]
-    SetValueError,
 }
 
 #[derive(Error, Debug)]
@@ -125,7 +119,7 @@ impl Matrix {
         assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
         unsafe {
             let alphabet = &CString::new(alphabet)?;
-            Ok(Matrix {
+            Ok(Self {
                 inner: parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score),
                 builtin: false,
             })
@@ -148,7 +142,7 @@ impl Matrix {
         }
 
         Ok(Self {
-            inner: matrix,
+            inner: matrix.cast_mut(),
             builtin: true,
         })
     }
@@ -220,7 +214,7 @@ impl Matrix {
                 return Err(MatrixError::FromFileError(filepath));
             }
 
-            Ok(Matrix {
+            Ok(Self {
                 inner: parasail_matrix_from_file(file.as_ptr()),
                 builtin: false,
             })
@@ -246,23 +240,86 @@ impl Matrix {
     }
 
     /// Convert a square scoring matrix to a PSSM (position-specific scoring matrix).
-    pub fn convert_square_to_pssm(&mut self, pssm_query: &str) {
-        let pssm_query_string = CString::new(pssm_query).unwrap();
+    pub fn to_pssm(self, pssm_query: &[u8]) -> Matrix {
+        let pssm_query_string = CString::new(pssm_query)
+            .unwrap_or_else(|e| panic!("Error converting PSSM query to CString: {}", e));
+
         unsafe {
-            self.inner = parasail_matrix_convert_square_to_pssm(
-                self.inner,
+            if pssm_query.len() == 0 {
+                panic!("PSSM query sequence is empty.")
+            }
+
+            let matrix = parasail_matrix_copy(self.inner);
+            if matrix.is_null() {
+                panic!("Matrix is null. First, create a matrix using `create` or `from` methods.")
+            }
+
+            if (*self.inner).type_ != 0 {
+                panic!("Matrix type is not square.")
+            }
+
+            let converted_matrix = parasail_matrix_convert_square_to_pssm(
+                matrix,
                 pssm_query_string.as_ptr(),
                 pssm_query.len() as i32,
             );
+
+            if converted_matrix.is_null() {
+                panic!("Erro converting matrix to PSSM. Invalid query sequence.")
+            }
+
+            Matrix {
+                inner: converted_matrix,
+                builtin: self.builtin,
+            }
         }
     }
 
-    /// Replace value in substitution matrix.
-    pub fn set_value(&mut self, x: i32, y: i32, value: i32) {
+    pub fn get_matrix_size(&self) {
         unsafe {
-            let matrix = parasail_matrix_copy(self.inner);
-            parasail_matrix_set_value(matrix, x, y, value);
-            self.inner = matrix
+            let length = (*self.inner).length as usize;
+            println!("Matrix length: {}", length);
+            let size = (*self.inner).size as usize;
+            println!("Matrix size: {}", size);
+            let matrix_type = (*self.inner).type_;
+            println!("Matrix type: {}", matrix_type);
+            let max = (*self.inner).max;
+            println!("Matrix max: {}", max);
+
+            let matrix = slice::from_raw_parts((*self.inner).matrix, length * size);
+            for i in 0..length {
+                for j in 0..size {
+                    print!("{} ", matrix[i * size + j]);
+                }
+                println!();
+            }
+        }
+    }
+
+    /// Set value at a given row and column in a user defined substitution matrix.
+    pub fn set_value(&mut self, row: i32, col: i32, value: i32) {
+        if self.builtin {
+            panic!("Only user defined matrix can be modified (consider using `create` method)");
+        }
+
+        unsafe {
+            let size = (*self.inner).size - 2;
+
+            if size < 0 {
+                panic!(
+                    "Error setting value on Matrix with size ({},{}).",
+                    size, size
+                );
+            }
+
+            if row < 0 || row > size || col < 0 || col > size {
+                panic!(
+                    "Error setting value on substitution matrix. Index ({},{}) out of range ((0,0),({},{})",
+                    row, col, size, size
+                );
+            }
+
+            parasail_matrix_set_value(self.inner.cast_mut(), row, col, value);
         }
     }
 }
@@ -270,7 +327,7 @@ impl Matrix {
 /// Default scoring matrix is an identity matrix for DNA sequences.
 impl Default for Matrix {
     fn default() -> Self {
-        Matrix::create(b"ACGT", 1, -1)
+        Matrix::create(b"ACGTA", 1, -1).unwrap()
     }
 }
 
