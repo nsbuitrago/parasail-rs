@@ -2,20 +2,15 @@ use parasail_rs::{Aligner, Matrix, Profile};
 use std::thread;
 
 #[test]
-pub fn matrix_shenanigans() {
-    let matrix = Matrix::default();
-    matrix.get_matrix_size();
-}
-
-#[test]
 pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
     // default matrix
     Matrix::default();
 
     // custom matrix
     let mut matrix = Matrix::create(b"ACGT", 3, -2)?;
+    println!("Matrix:\n {}", matrix);
     matrix.set_value(2, 2, 100);
-    matrix.get_matrix_size();
+    println!("Matrix:\n {}", matrix);
 
     // from name
     let blosum62 = Matrix::from("blosum62")?;
@@ -33,18 +28,20 @@ pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
     let pssm_alphabet = "abcdef";
     let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
     let rows = 2;
-    Matrix::create_pssm(pssm_alphabet, values, rows);
+    Matrix::create_pssm(pssm_alphabet, values, rows)?;
 
     Ok(())
 }
 
 #[test]
-pub fn profile_construction() {
+pub fn profile_construction() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ATGGCACTATAA";
-    Profile::new(query, false, &Matrix::default());
+    Profile::new(query, false, &Matrix::default())?;
 
     // with stats
-    Profile::new(query, true, &Matrix::default());
+    Profile::new(query, true, &Matrix::default())?;
+
+    Ok(())
 }
 
 #[test]
@@ -195,7 +192,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     // alignment with profile, without stats
     let custom_score = 3;
     let matrix = Matrix::create(b"ACGT", custom_score, -2)?;
-    let profile = Profile::new(query, false, &matrix);
+    let profile = Profile::new(query, false, &matrix)?;
 
     let aligner_w_profile = Aligner::new().profile(profile).use_table().build();
 
@@ -207,7 +204,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(result_w_profile.get_score_table()?, custom_score);
 
     // // alignment with profile, with stats
-    let profile = Profile::new(query, true, &matrix);
+    let profile = Profile::new(query, true, &matrix)?;
     let aligner_w_profile = Aligner::new()
         .profile(profile)
         .use_stats()
@@ -476,11 +473,11 @@ pub fn get_cigar() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-pub fn global_with_profile() {
+pub fn global_with_profile() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let matrix = Matrix::default();
-    let profile = Profile::new(query, true, &matrix);
+    let profile = Profile::new(query, true, &matrix)?;
 
     let aligner = Aligner::new()
         .profile(profile)
@@ -494,14 +491,16 @@ pub fn global_with_profile() {
     assert!(result.is_stats());
     assert!(!result.is_local());
     assert!(!result.is_semi_global());
+
+    Ok(())
 }
 
 #[test]
-pub fn semi_global_with_profile() {
+pub fn semi_global_with_profile() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let matrix = Matrix::default();
-    let profile = Profile::new(query, true, &matrix);
+    let profile = Profile::new(query, true, &matrix)?;
 
     let aligner = Aligner::new()
         .profile(profile)
@@ -516,14 +515,16 @@ pub fn semi_global_with_profile() {
     assert!(result.is_stats());
     assert!(!result.is_local());
     assert!(!result.is_global());
+
+    Ok(())
 }
 
 #[test]
-pub fn local_with_profile() {
+pub fn local_with_profile() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let matrix = Matrix::default();
-    let profile = Profile::new(query, true, &matrix);
+    let profile = Profile::new(query, true, &matrix)?;
 
     let aligner = Aligner::new()
         .profile(profile)
@@ -538,14 +539,16 @@ pub fn local_with_profile() {
     assert!(result.is_stats());
     assert!(!result.is_global());
     assert!(!result.is_semi_global());
+
+    Ok(())
 }
 
 #[test]
-pub fn multithread_global_alignment() {
+pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let refs = vec![b"ACGT", b"ACGT"];
     let matrix = Matrix::default();
-    let profile = Profile::new(query, true, &matrix);
+    let profile = Profile::new(query, true, &matrix)?;
 
     let aligner = Aligner::new().profile(profile).use_stats().build();
 
@@ -558,4 +561,6 @@ pub fn multithread_global_alignment() {
     })
     .join()
     .unwrap();
+
+    Ok(())
 }

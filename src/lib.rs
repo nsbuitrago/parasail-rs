@@ -27,21 +27,25 @@
 //! ```rust,no_run
 //! use parasail_rs::{Matrix, Aligner, Profile};
 //!
-//! let query = b"ACGT";
-//! let ref_1 = b"ACGTAACGTACA";
-//! let ref_2 = b"TGGCAAGGTAGA";
+//! fn align() -> Result<(), Box<dyn std::error::Error>> {
 //!
-//! let use_stats = true;
-//! let query_profile = Profile::new(query, use_stats, &Matrix::default());
-//! let aligner = Aligner::new()
-//!     .profile(query_profile)
-//!     .build();
+//!     let query = b"ACGT";
+//!     let ref_1 = b"ACGTAACGTACA";
+//!     let ref_2 = b"TGGCAAGGTAGA";
 //!
-//! let result_1 = aligner.align(None, ref_1);
-//! let result_2 = aligner.align(None, ref_2);
+//!     let use_stats = true;
+//!     let query_profile = Profile::new(query, use_stats, &Matrix::default())?;
+//!     let aligner = Aligner::new()
+//!         .profile(query_profile)
+//!         .build();
 //!
-//! println!("Score 1: {}", result_1.get_score());
-//! println!("Score 2: {}", result_2.get_score());
+//!     let result_1 = aligner.align(None, ref_1);
+//!     let result_2 = aligner.align(None, ref_2);
+//!
+//!     println!("Score 1: {}", result_1.get_score());
+//!     println!("Score 2: {}", result_2.get_score());
+//!     Ok(())
+//! }
 //!
 
 use libparasail_sys::{
@@ -68,6 +72,7 @@ use libparasail_sys::{
 
 use log::warn;
 use std::ffi::{CString, IntoStringError, NulError};
+use std::fmt::Display;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
@@ -86,6 +91,14 @@ pub enum MatrixError<'a> {
     FileNotFound(&'a Path),
     #[error("Error creating PSSM matrix. Invalid alphabet, values, or rows.")]
     CreatePssmError,
+}
+
+#[derive(Error, Debug)]
+pub enum ProfileError {
+    #[error("Error creating profile: {0}")]
+    CreateError(#[from] NulError),
+    #[error("Error creating profile. Null profile returned from parasail.")]
+    NullProfile,
 }
 
 #[derive(Error, Debug)]
@@ -275,27 +288,6 @@ impl Matrix {
         }
     }
 
-    pub fn get_matrix_size(&self) {
-        unsafe {
-            let length = (*self.inner).length as usize;
-            println!("Matrix length: {}", length);
-            let size = (*self.inner).size as usize;
-            println!("Matrix size: {}", size);
-            let matrix_type = (*self.inner).type_;
-            println!("Matrix type: {}", matrix_type);
-            let max = (*self.inner).max;
-            println!("Matrix max: {}", max);
-
-            let matrix = slice::from_raw_parts((*self.inner).matrix, length * size);
-            for i in 0..length {
-                for j in 0..size {
-                    print!("{} ", matrix[i * size + j]);
-                }
-                println!();
-            }
-        }
-    }
-
     /// Set value at a given row and column in a user defined substitution matrix.
     pub fn set_value(&mut self, row: i32, col: i32, value: i32) {
         if self.builtin {
@@ -328,6 +320,24 @@ impl Matrix {
 impl Default for Matrix {
     fn default() -> Self {
         Matrix::create(b"ACGTA", 1, -1).unwrap()
+    }
+}
+
+#[doc(hidden)]
+impl Display for Matrix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unsafe {
+            let length = (*self.inner).length as usize;
+            let size = (*self.inner).size as usize;
+            let matrix = slice::from_raw_parts((*self.inner).matrix, length * size);
+            for i in 0..length {
+                for j in 0..size {
+                    write!(f, "{} ", matrix[i * size + j])?;
+                }
+                writeln!(f)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -366,25 +376,37 @@ impl Profile {
     /// The with_stats should be set to true if you will use an alignment function that returns
     /// statistics. If true, the Profile will use the appropriate parasail functions to allocate
     /// additional data structures required for statistics.
-    pub fn new(query: &[u8], with_stats: bool, matrix: &Matrix) -> Self {
+    pub fn new(query: &[u8], with_stats: bool, matrix: &Matrix) -> Result<Self, ProfileError> {
         let query_len = query.len() as i32;
-        let query = CString::new(query).unwrap();
+        if query_len == 0 {
+            panic!("Query sequence is empty.");
+        }
+        let query = CString::new(query)?;
+
         unsafe {
             match with_stats {
                 true => {
                     let profile =
                         parasail_profile_create_stats_sat(query.as_ptr(), query_len, **matrix);
-                    Profile {
+                    if profile.is_null() {
+                        return Err(ProfileError::NullProfile);
+                    }
+
+                    Ok(Profile {
                         inner: profile,
                         use_stats: true,
-                    }
+                    })
                 }
                 false => {
                     let profile = parasail_profile_create_sat(query.as_ptr(), query_len, **matrix);
-                    Profile {
+                    if profile.is_null() {
+                        return Err(ProfileError::NullProfile);
+                    }
+
+                    Ok(Profile {
                         inner: profile,
                         use_stats: false,
-                    }
+                    })
                 }
             }
         }

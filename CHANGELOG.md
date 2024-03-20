@@ -7,14 +7,19 @@ All notable changes will be documented here in reverse chronological order the h
 ## Features
 
 - Add `set_value` method to change values in substitution matrices.
-- Add `print_traceback` method to print alignment strings and statistics.
-- Add `get_traceback_strings` method on AlignResult to return a Traceback struct (query, ref, and comparison strings).
-- Add `get_cigar` method to recover CIGAR strings.
+- Add Display trait on Matrix for easy printing to stdout.
+- Add methods on AlignResult:
+    - `print_traceback` (print alignment strings and statistics).
+    - `get_traceback_strings` (return a Traceback struct that includes query, ref, and comparison strings).
+    - `get_cigar` (get CIGAR strings).
 
 ## Breaking Changes
 
 - Removed `mode` method from AlignerBuilder. Use `global`, `semi_global`, or `local` methods instead.
 - Removed `vec_strategy` method from AlignerBuilder. Use `striped`, `scan`, and `diag` methods instead.
+- Matrix methods returning results:
+    - `create`, `from`, and `create_pssm`, `from_file` now return `Result<Self, MatrixError>`.
+- Profile `create` method now returns `Result<Self, ProfileError>`.
 
 ## 0.5.1 - 2024.03.13
 
