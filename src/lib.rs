@@ -15,33 +15,41 @@
 //! ```rust,no_run
 //! use parasail_rs::{Aligner};
 //!
-//! let query = b"ACGT";
-//! let reference = b"ACGT";
-//! let aligner = Aligner::new().build();
+//! fn align() -> Result<(), Box<dyn std::error::Error>> {
+//!     let query = b"ACGT";
+//!     let reference = b"ACGT";
+//!     let aligner = Aligner::new().build();
 
-//! let result = aligner.align(Some(query), reference);
-//! println!("Alignment Score: {}", result.get_score());
+//!     let result = aligner.align(Some(query), reference)?;
+//!     println!("Alignment Score: {}", result.get_score());
+//!
+//!     Ok(())
+//! }
 //! ```
 //!
 //! ### Using query profile
 //! ```rust,no_run
 //! use parasail_rs::{Matrix, Aligner, Profile};
 //!
-//! let query = b"ACGT";
-//! let ref_1 = b"ACGTAACGTACA";
-//! let ref_2 = b"TGGCAAGGTAGA";
+//! fn align() -> Result<(), Box<dyn std::error::Error>> {
 //!
-//! let use_stats = true;
-//! let query_profile = Profile::new(query, use_stats, &Matrix::default());
-//! let aligner = Aligner::new()
-//!     .profile(query_profile)
-//!     .build();
+//!     let query = b"ACGT";
+//!     let ref_1 = b"ACGTAACGTACA";
+//!     let ref_2 = b"TGGCAAGGTAGA";
 //!
-//! let result_1 = aligner.align(None, ref_1);
-//! let result_2 = aligner.align(None, ref_2);
+//!     let use_stats = true;
+//!     let query_profile = Profile::new(query, use_stats, &Matrix::default())?;
+//!     let aligner = Aligner::new()
+//!         .profile(query_profile)
+//!         .build();
 //!
-//! println!("Score 1: {}", result_1.get_score());
-//! println!("Score 2: {}", result_2.get_score());
+//!     let result_1 = aligner.align(None, ref_1)?;
+//!     let result_2 = aligner.align(None, ref_2)?;
+//!
+//!     println!("Score 1: {}", result_1.get_score());
+//!     println!("Score 2: {}", result_2.get_score());
+//!     Ok(())
+//! }
 //!
 
 use libparasail_sys::{
@@ -67,18 +75,66 @@ use libparasail_sys::{
 };
 
 use log::warn;
-use std::ffi::{CString, IntoStringError};
-use std::io;
+use std::ffi::{CString, IntoStringError, NulError};
+use std::fmt::Display;
 use std::ops::Deref;
+use std::path::Path;
+use std::slice;
 use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum CigarError {
+pub enum MatrixError {
+    #[error("Error creating matrix: {0}")]
+    CreateErr(#[from] NulError),
+    #[error("Error creating matrix from lookup: {0} matrix not found.")]
+    LookupErr(String),
+    #[error("Error creating matrix from file: {0}")]
+    FromFileErr(String),
+    #[error("File not found: {0}")]
+    FileNotFound(String),
+    #[error("Error creating PSSM matrix. Invalid alphabet, values, or rows.")]
+    CreatePssmErr,
+    #[error("Error creating matrix. Matrix has not been created yet. Consider using the `create` method.")]
+    NullMatrix,
+    #[error("Error converting matrix to PSSM. Matrix is not square.")]
+    NotSquare,
+    #[error("Error setting value on substitution matrix: Matrix must be a user matrix and not builtin. Consider using the `create` method")]
+    NotBuiltIn,
+    #[error("Error setting value on substitution matrix: Index ({0},{1}) out of range ((0,0),({2},{2}))")]
+    InvalidIndex(i32, i32, i32),
+}
+
+#[derive(Error, Debug)]
+pub enum ProfileError {
+    #[error("Error creating profile: {0}")]
+    CreateErr(#[from] NulError),
+    #[error("Error creating profile. Null profile returned from parasail.")]
+    NullProfile,
+}
+
+#[derive(Error, Debug)]
+pub enum AlignError {
+    #[error("Alignment initialization error: {0}")]
+    AlignInitErr(#[from] NulError),
+}
+
+#[derive(Error, Debug)]
+pub enum AlignResultError {
+    #[error("Error getting result from {0}. Stats must be initialized. Consider using `use_stats` method on AlignerBuilder.")]
+    NoStats(String),
+    #[error("Error getting result from {0}. Table must be enabled. Consider using `use_table` method on AlignerBuilder.")]
+    NoTable(String),
+    #[error("Error getting result from {0}. Table and stats must be enabled. Consider chaining `use_stats` and use_table methods on AlignerBuilder.")]
+    NoStatsTable(String),
+    #[error("Error getting result from {0}. Last row and col must be enabled. Consider using `use_rowcol` method on AlignerBuilder.")]
+    NoRowCol(String),
+    #[error("Error getting result from {0}. Traceback must be enabled. Consider using `use_trace` method on AlignerBuilder.")]
+    NoTrace(String),
     #[error("Error converting CIGAR string to Rust string: {0}")]
-    IntoStringError(#[from] IntoStringError),
-    #[error("Traceback set to: {0}. Enable traceback with `use_trace` method on AlignerBuilder to get CIGAR.")]
-    NoTracebackError(bool),
+    CigarToStringErr(#[from] IntoStringError),
+    #[error("Error creating new CString: {0}")]
+    NewCStringErr(#[from] NulError),
 }
 
 /// Substitution matrix for sequence alignment.
@@ -96,14 +152,19 @@ pub struct Matrix {
 impl Matrix {
     /// Create a new scoring matrix from an alphabet and match/mismatch scores.
     /// Note that match score should be a positive integer, while mismatch score should be a negative integer.
-    pub fn create(alphabet: &[u8], match_score: i32, mismatch_score: i32) -> Self {
+    pub fn create(
+        alphabet: &[u8],
+        match_score: i32,
+        mismatch_score: i32,
+    ) -> Result<Self, MatrixError> {
         assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
+        assert!(alphabet.len() > 0, "Alphabet should not be empty.");
         unsafe {
-            let alphabet = &CString::new(alphabet).unwrap();
-            Self {
+            let alphabet = &CString::new(alphabet)?;
+            Ok(Self {
                 inner: parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score),
                 builtin: false,
-            }
+            })
         }
     }
 
@@ -111,14 +172,22 @@ impl Matrix {
     /// The matrix name should be one of the following:
     /// - blosum{30, 35, 40, 45, 50, 55, 60, 62, 65, 70, 75, 80, 85, 90, 95, 100}
     /// - pam{10-500 in steps of 10}
-    pub fn from(matrix_name: &str) -> Self {
+    pub fn from(matrix_name: &str) -> Result<Self, MatrixError> {
+        assert!(!matrix_name.is_empty(), "Matrix name should not be empty.");
+        let matrix: *const parasail_matrix_t;
         unsafe {
-            let matrix = parasail_matrix_lookup(matrix_name.as_ptr() as *const i8);
-            Self {
-                inner: matrix,
-                builtin: true,
-            }
+            let matrix_name = CString::new(matrix_name)?;
+            matrix = parasail_matrix_lookup(matrix_name.as_ptr());
         }
+
+        if matrix.is_null() {
+            return Err(MatrixError::LookupErr(matrix_name.to_string()));
+        }
+
+        Ok(Self {
+            inner: matrix,
+            builtin: true,
+        })
     }
 
     /// Create a new scoring matrix from a file.
@@ -173,53 +242,131 @@ impl Matrix {
     // I  -5  -7   7   1   0  -2   3  -5  -6  -5   0  -4  -4  -1  -6   3  -6  -6  -6  -6
     //
     /// Create a new scoring matrix from file.
-    pub fn from_file(file: &str) -> Self {
-        let file = CString::new(file).unwrap();
+    pub fn from_file(file: &str) -> Result<Self, MatrixError> {
+        let filepath = Path::new(file);
+        if !filepath.exists() {
+            return Err(MatrixError::FileNotFound(
+                filepath.to_str().unwrap().to_string(),
+            ));
+        }
+
+        let file = CString::new(file)?;
+
         unsafe {
-            Matrix {
+            let matrix = parasail_matrix_from_file(file.as_ptr());
+
+            if matrix.is_null() {
+                return Err(MatrixError::FromFileErr(
+                    filepath.to_str().unwrap().to_string(),
+                ));
+            }
+
+            Ok(Self {
                 inner: parasail_matrix_from_file(file.as_ptr()),
                 builtin: false,
-            }
+            })
         }
     }
 
     /// Create a new scoring matrix from a PSSM (position-specific scoring matrix).
-    pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Self {
-        let alphabet = CString::new(alphabet).unwrap();
+    pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Result<Self, MatrixError> {
+        let alphabet = CString::new(alphabet)?;
+
         unsafe {
-            Self {
-                inner: parasail_matrix_pssm_create(alphabet.as_ptr(), values.as_ptr(), rows),
-                builtin: false,
+            let matrix = parasail_matrix_pssm_create(alphabet.as_ptr(), values.as_ptr(), rows);
+
+            if matrix.is_null() {
+                return Err(MatrixError::CreatePssmErr);
             }
+
+            Ok(Self {
+                inner: matrix,
+                builtin: false,
+            })
         }
     }
 
     /// Convert a square scoring matrix to a PSSM (position-specific scoring matrix).
-    pub fn convert_square_to_pssm(&mut self, pssm_query: &str) {
-        let pssm_query_string = CString::new(pssm_query).unwrap();
+    pub fn to_pssm(self, pssm_query: &[u8]) -> Result<Matrix, MatrixError> {
+        assert!(
+            !pssm_query.is_empty(),
+            "PSSM query sequence should not be empty."
+        );
+        let pssm_query_string = CString::new(pssm_query)?;
+
         unsafe {
-            self.inner = parasail_matrix_convert_square_to_pssm(
-                self.inner,
+            let matrix = parasail_matrix_copy(self.inner);
+            if matrix.is_null() {
+                return Err(MatrixError::NullMatrix);
+            }
+
+            if (*self.inner).type_ != 0 {
+                return Err(MatrixError::NotSquare);
+            }
+
+            let converted_matrix = parasail_matrix_convert_square_to_pssm(
+                matrix,
                 pssm_query_string.as_ptr(),
                 pssm_query.len() as i32,
             );
+
+            if converted_matrix.is_null() {
+                panic!("Erro converting matrix to PSSM. Invalid query sequence.")
+            }
+
+            Ok(Matrix {
+                inner: converted_matrix,
+                builtin: self.builtin,
+            })
         }
     }
 
-    /// Replace value in substitution matrix.
-    pub fn set_value(&mut self, x: i32, y: i32, value: i32) {
-        unsafe {
-            let matrix = parasail_matrix_copy(self.inner);
-            parasail_matrix_set_value(matrix, x, y, value);
-            self.inner = matrix
+    /// Set value at a given row and column in a user defined substitution matrix.
+    pub fn set_value(&mut self, row: i32, col: i32, value: i32) -> Result<(), MatrixError> {
+        if self.builtin {
+            return Err(MatrixError::NotBuiltIn);
         }
+
+        unsafe {
+            let size = (*self.inner).size - 2;
+
+            if size < 0 {
+                return Err(MatrixError::NullMatrix);
+            }
+
+            if row < 0 || row > size || col < 0 || col > size {
+                return Err(MatrixError::InvalidIndex(row, col, size));
+            }
+
+            parasail_matrix_set_value(self.inner.cast_mut(), row, col, value);
+        }
+
+        Ok(())
     }
 }
 
 /// Default scoring matrix is an identity matrix for DNA sequences.
 impl Default for Matrix {
     fn default() -> Self {
-        Matrix::create(b"ACGT", 1, -1)
+        Matrix::create(b"ACGTA", 1, -1).unwrap()
+    }
+}
+
+#[doc(hidden)]
+impl Display for Matrix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unsafe {
+            let length = (*self.inner).length as usize;
+            let size = (*self.inner).size as usize;
+            let matrix = slice::from_raw_parts((*self.inner).matrix, length * size);
+            for i in 0..length {
+                for j in 0..size {
+                    write!(f, "{} ", matrix[i * size + j])?;
+                }
+                writeln!(f)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -258,25 +405,37 @@ impl Profile {
     /// The with_stats should be set to true if you will use an alignment function that returns
     /// statistics. If true, the Profile will use the appropriate parasail functions to allocate
     /// additional data structures required for statistics.
-    pub fn new(query: &[u8], with_stats: bool, matrix: &Matrix) -> Self {
+    pub fn new(query: &[u8], with_stats: bool, matrix: &Matrix) -> Result<Self, ProfileError> {
         let query_len = query.len() as i32;
-        let query = CString::new(query).unwrap();
+        if query_len == 0 {
+            panic!("Query sequence is empty.");
+        }
+        let query = CString::new(query)?;
+
         unsafe {
             match with_stats {
                 true => {
                     let profile =
                         parasail_profile_create_stats_sat(query.as_ptr(), query_len, **matrix);
-                    Profile {
+                    if profile.is_null() {
+                        return Err(ProfileError::NullProfile);
+                    }
+
+                    Ok(Profile {
                         inner: profile,
                         use_stats: true,
-                    }
+                    })
                 }
                 false => {
                     let profile = parasail_profile_create_sat(query.as_ptr(), query_len, **matrix);
-                    Profile {
+                    if profile.is_null() {
+                        return Err(ProfileError::NullProfile);
+                    }
+
+                    Ok(Profile {
                         inner: profile,
                         use_stats: false,
-                    }
+                    })
                 }
             }
         }
@@ -655,11 +814,10 @@ impl Aligner {
 
     /// Perform alignment between a query and reference sequence. If profile was set while building
     /// the aligner, pass None as the query sequence. Otherwise, wrap the query sequence in a Some variant (i.e. Some(query)).
-    pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> AlignResult {
+    pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> Result<AlignResult, AlignError> {
         let ref_len = reference.len() as i32;
-        let reference = CString::new(reference).unwrap();
+        let reference = CString::new(reference)?;
 
-        // already checked that aligner function f is some variant during build step
         match self.parasail_fn {
             AlignerFn::Function(f) => {
                 assert!(
@@ -670,7 +828,8 @@ impl Aligner {
                 let query_len = query.len() as i32;
 
                 unsafe {
-                    let query = CString::new(query).unwrap();
+                    let query = CString::new(query)?;
+                    // already checked that aligner function f is some variant during build step
                     let result = f.unwrap()(
                         query.as_ptr(),
                         query_len,
@@ -681,13 +840,14 @@ impl Aligner {
                         **self.matrix,
                     );
 
-                    AlignResult {
+                    Ok(AlignResult {
                         inner: result,
                         matrix: **self.matrix,
-                    }
+                    })
                 }
             }
             AlignerFn::PFunction(f) => unsafe {
+                // already checked that aligner function f is some variant during build step
                 let result = f.unwrap()(
                     **self.profile,
                     reference.as_ptr(),
@@ -696,10 +856,10 @@ impl Aligner {
                     self.gap_extend,
                 );
 
-                AlignResult {
+                Ok(AlignResult {
                     inner: result,
                     matrix: **self.matrix,
-                }
+                })
             },
         }
     }
@@ -727,6 +887,7 @@ pub struct Traceback {
 }
 
 /// Sequence alignment result.
+#[derive(Debug, Clone)]
 pub struct AlignResult {
     inner: *mut parasail_result_t,
     matrix: *const parasail_matrix_t,
@@ -749,14 +910,11 @@ impl AlignResult {
     }
 
     /// Get number of matches in the alignment.
-    pub fn get_matches(&self) -> Result<i32, io::Error> {
+    pub fn get_matches(&self) -> Result<i32, AlignResultError> {
         if self.is_stats() {
             unsafe { Ok(parasail_result_get_matches(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Matches are not available without stats.",
-            ))
+            Err(AlignResultError::NoStats(String::from("get_matches()")))
         }
     }
 
@@ -765,170 +923,142 @@ impl AlignResult {
     }
 
     /// Get alignment length.
-    pub fn get_length(&self) -> Result<i32, io::Error> {
+    pub fn get_length(&self) -> Result<i32, AlignResultError> {
         if self.is_stats() {
             unsafe { Ok(parasail_result_get_length(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Length is not available without stats.",
-            ))
+            Err(AlignResultError::NoStats(String::from("get_length()")))
         }
     }
 
     /// Get score table.
-    pub fn get_score_table(&self) -> Result<i32, io::Error> {
+    pub fn get_score_table(&self) -> Result<i32, AlignResultError> {
         if self.is_table() || self.is_stats_table() {
             unsafe { Ok(*parasail_result_get_score_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Score table is not available without setting use_table",
-            ))
+            Err(AlignResultError::NoTable(String::from("get_score_table()")))
         }
     }
 
     /// Get matches table.
-    pub fn get_matches_table(&self) -> Result<i32, io::Error> {
+    pub fn get_matches_table(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_table() {
             unsafe { Ok(*parasail_result_get_matches_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Matches table is not available without setting use_stats and use_table",
-            ))
+            Err(AlignResultError::NoStatsTable(String::from(
+                "get_matches_table()",
+            )))
         }
     }
 
     /// Get similar table.
-    pub fn get_similar_table(&self) -> Result<i32, io::Error> {
+    pub fn get_similar_table(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_table() {
             unsafe { Ok(*parasail_result_get_similar_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Similar table is not available without setting use_stats and use_table",
-            ))
+            Err(AlignResultError::NoStatsTable(String::from(
+                "get_similar_table()",
+            )))
         }
     }
 
     /// Get length table.
-    pub fn get_length_table(&self) -> Result<i32, io::Error> {
+    pub fn get_length_table(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_table() {
             unsafe { Ok(*parasail_result_get_length_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Length table is not available without setting use_stats and use_table",
-            ))
+            Err(AlignResultError::NoStatsTable(String::from(
+                "get_length_table()",
+            )))
         }
     }
 
     /// Get score row.
-    pub fn get_score_row(&self) -> Result<i32, io::Error> {
+    pub fn get_score_row(&self) -> Result<i32, AlignResultError> {
         if self.is_rowcol() || self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_score_row(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Score row is not available without setting use_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from("get_score_row()")))
         }
     }
 
     /// Get matches row.
-    pub fn get_matches_row(&self) -> Result<i32, io::Error> {
+    pub fn get_matches_row(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_matches_row(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Matches row is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from(
+                "get_matches_row()",
+            )))
         }
     }
 
     /// Get similar row.
-    pub fn get_similar_row(&self) -> Result<i32, io::Error> {
+    pub fn get_similar_row(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_similar_row(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Similar row is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from(
+                "get_similar_row()",
+            )))
         }
     }
 
     /// Get length row.
-    pub fn get_length_row(&self) -> Result<i32, io::Error> {
+    pub fn get_length_row(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_length_row(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Length row is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from("get_length_row()")))
         }
     }
 
     /// Get score column.
-    pub fn get_score_col(&self) -> Result<i32, io::Error> {
+    pub fn get_score_col(&self) -> Result<i32, AlignResultError> {
         if self.is_rowcol() || self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_score_col(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Score column is not available without setting use_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from("get_score_col()")))
         }
     }
 
     /// Get matches column.
-    pub fn get_matches_col(&self) -> Result<i32, io::Error> {
+    pub fn get_matches_col(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_matches_col(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Matches column is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from(
+                "get_matches_col()",
+            )))
         }
     }
 
     /// Get similar column.
-    pub fn get_similar_col(&self) -> Result<i32, io::Error> {
+    pub fn get_similar_col(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_similar_col(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Similar column is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from(
+                "get_similar_col()",
+            )))
         }
     }
 
     /// Get length column
-    pub fn get_length_col(&self) -> Result<i32, io::Error> {
+    pub fn get_length_col(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_length_col(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Length column is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from("get_length_col()")))
         }
     }
 
     /// Get trace table.
-    pub fn get_trace_table(&self) -> Result<i32, io::Error> {
+    pub fn get_trace_table(&self) -> Result<i32, AlignResultError> {
         if self.is_trace() {
             unsafe { Ok(*parasail_result_get_trace_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Trace table is not available without setting use_trace",
-            ))
+            Err(AlignResultError::NoTrace(String::from("get_trace_table()")))
         }
     }
 
@@ -955,7 +1085,7 @@ impl AlignResult {
     // }
 
     /// Get alignment strings and statistics
-    pub fn print_traceback(&self, query: &[u8], reference: &[u8]) -> Result<(), io::Error> {
+    pub fn print_traceback(&self, query: &[u8], reference: &[u8]) {
         if self.is_trace() {
             let query_len = query.len() as i32;
             let ref_len = reference.len() as i32;
@@ -985,14 +1115,9 @@ impl AlignResult {
                     name_width,
                     use_stats,
                 );
-
-                Ok(())
             }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Alignment string is not available without setting use_trace",
-            ))
+            println!("Alignment string is not available without traceback enabled. Consider using the `use_trace` method on AlignerBuilder.");
         }
     }
 
@@ -1001,7 +1126,7 @@ impl AlignResult {
         &self,
         query: &[u8],
         reference: &[u8],
-    ) -> Result<Traceback, io::Error> {
+    ) -> Result<Traceback, AlignResultError> {
         if self.is_trace() {
             let query_len = query.len() as i32;
             let ref_len = reference.len() as i32;
@@ -1029,26 +1154,25 @@ impl AlignResult {
                     CString::from_raw((*alignment).ref_).into_string().unwrap();
 
                 Ok(Traceback {
-                    query: query_traceback,
-                    comparison: comparison_traceback,
-                    reference: reference_traceback,
+                    query: query_traceback.clone(),
+                    comparison: comparison_traceback.clone(),
+                    reference: reference_traceback.clone(),
                 })
             }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Alignment string is not available without setting use_trace",
-            ))
+            return Err(AlignResultError::NoTrace(String::from(
+                "get_traceback_strings()",
+            )));
         }
     }
 
     /// Get CIGAR string.
-    pub fn get_cigar(&self, query: &[u8], reference: &[u8]) -> Result<String, CigarError> {
+    pub fn get_cigar(&self, query: &[u8], reference: &[u8]) -> Result<String, AlignResultError> {
         if self.is_trace() {
             let query_len = query.len() as i32;
-            let query = CString::new(query).unwrap();
+            let query = CString::new(query)?;
             let ref_len = reference.len() as i32;
-            let reference = CString::new(reference).unwrap();
+            let reference = CString::new(reference)?;
 
             let cigar: Result<String, IntoStringError>;
             unsafe {
@@ -1068,7 +1192,7 @@ impl AlignResult {
 
             Ok(cigar?)
         } else {
-            Err(CigarError::NoTracebackError(self.is_trace()))
+            Err(AlignResultError::NoTrace(String::from("get_cigar()")))
         }
     }
 

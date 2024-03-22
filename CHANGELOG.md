@@ -2,14 +2,33 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.7.0 - 2024.03.20
+
+### Features
+
+- Add Display trait on Matrix for easy printing to stdout.
+
+### Breaking Changes
+
+- Matrix methods returning results:
+    - `create`, `from`, and `create_pssm`, `from_file` now return `Result<Self, MatrixError>`.
+- Profile `create` method now returns `Result<Self, ProfileError>`.
+- `align` method returns `Result<AlignResult, AlignError>`.
+- `convert_square_to_pssm` renamed to `to_pssm` for succinctness.
+
+### Bug Fixes
+
+- `set_value` method can only modify valid matrix indices.
+
 ## 0.6.0 - 2024.03.18
 
-## Features
+### Features
 
 - Add `set_value` method to change values in substitution matrices.
-- Add `print_traceback` method to print alignment strings and statistics.
-- Add `get_traceback_strings` method on AlignResult to return a Traceback struct (query, ref, and comparison strings).
-- Add `get_cigar` method to recover CIGAR strings.
+- Add methods on AlignResult:
+    - `print_traceback` (print alignment strings and statistics).
+    - `get_traceback_strings` (return a Traceback struct that includes query, ref, and comparison strings).
+    - `get_cigar` (get CIGAR strings).
 
 ## Breaking Changes
 
