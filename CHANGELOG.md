@@ -2,12 +2,29 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.7.0 - 2024.03.20
+
+### Features
+
+- Add Display trait on Matrix for easy printing to stdout.
+
+### Breaking Changes
+
+- Matrix methods returning results:
+    - `create`, `from`, and `create_pssm`, `from_file` now return `Result<Self, MatrixError>`.
+- Profile `create` method now returns `Result<Self, ProfileError>`.
+- `align` method returns `Result<AlignResult, AlignError>`.
+- `convert_square_to_pssm` renamed to `to_pssm` for succinctness.
+
+### Bug Fixes
+
+- `set_value` method can only modify valid matrix indices.
+
 ## 0.6.0 - 2024.03.18
 
-## Features
+### Features
 
 - Add `set_value` method to change values in substitution matrices.
-- Add Display trait on Matrix for easy printing to stdout.
 - Add methods on AlignResult:
     - `print_traceback` (print alignment strings and statistics).
     - `get_traceback_strings` (return a Traceback struct that includes query, ref, and comparison strings).
@@ -17,10 +34,6 @@ All notable changes will be documented here in reverse chronological order the h
 
 - Removed `mode` method from AlignerBuilder. Use `global`, `semi_global`, or `local` methods instead.
 - Removed `vec_strategy` method from AlignerBuilder. Use `striped`, `scan`, and `diag` methods instead.
-- Matrix methods returning results:
-    - `create`, `from`, and `create_pssm`, `from_file` now return `Result<Self, MatrixError>`.
-- Profile `create` method now returns `Result<Self, ProfileError>`.
-- `align` method returns `Result<AlignResult, AlignError>`.
 
 ## 0.5.1 - 2024.03.13
 

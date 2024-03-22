@@ -460,7 +460,7 @@ pub fn print_traceback() -> Result<(), Box<dyn std::error::Error>> {
     let reference = b"ACGT";
     let aligner = Aligner::new().use_trace().build();
     let result = aligner.align(Some(query), reference)?;
-    result.print_traceback(query, reference)?;
+    result.print_traceback(query, reference);
 
     Ok(())
 }

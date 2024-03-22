@@ -79,20 +79,20 @@ use std::ffi::{CString, IntoStringError, NulError};
 use std::fmt::Display;
 use std::ops::Deref;
 use std::path::Path;
+use std::slice;
 use std::sync::Arc;
-use std::{io, slice};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum MatrixError<'a> {
+pub enum MatrixError {
     #[error("Error creating matrix: {0}")]
     CreateError(#[from] NulError),
     #[error("Error creating matrix from lookup: {0} matrix not found.")]
     LookupError(String),
     #[error("Error creating matrix from file: {0}")]
-    FromFileError(&'a Path),
+    FromFileError(String),
     #[error("File not found: {0}")]
-    FileNotFound(&'a Path),
+    FileNotFound(String),
     #[error("Error creating PSSM matrix. Invalid alphabet, values, or rows.")]
     CreatePssmError,
 }
@@ -112,11 +112,21 @@ pub enum AlignError {
 }
 
 #[derive(Error, Debug)]
-pub enum CigarError {
+pub enum AlignResultError {
+    #[error("Error getting result from {0}. Stats must be initialized. Consider using `use_stats` method on AlignerBuilder.")]
+    NoStats(String),
+    #[error("Error getting result from {0}. Table must be enabled. Consider using `use_table` method on AlignerBuilder.")]
+    NoTable(String),
+    #[error("Error getting result from {0}. Table and stats must be enabled. Consider chaining `use_stats` and use_table methods on AlignerBuilder.")]
+    NoStatsTable(String),
+    #[error("Error getting result from {0}. Last row and col must be enabled. Consider using `use_rowcol` method on AlignerBuilder.")]
+    NoRowCol(String),
+    #[error("Error getting result from {0}. Traceback must be enabled. Consider using `use_trace` method on AlignerBuilder.")]
+    NoTrace(String),
     #[error("Error converting CIGAR string to Rust string: {0}")]
-    IntoStringError(#[from] IntoStringError),
-    #[error("Traceback set to: {0}. Enable traceback with `use_trace` method on AlignerBuilder to get CIGAR.")]
-    NoTracebackError(bool),
+    CigarToStringErr(#[from] IntoStringError),
+    #[error("Error creating new CString: {0}")]
+    NewCStringErr(#[from] NulError),
 }
 
 /// Substitution matrix for sequence alignment.
@@ -140,6 +150,7 @@ impl Matrix {
         mismatch_score: i32,
     ) -> Result<Self, MatrixError> {
         assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
+        assert!(alphabet.len() > 0, "Alphabet should not be empty.");
         unsafe {
             let alphabet = &CString::new(alphabet)?;
             Ok(Self {
@@ -154,6 +165,7 @@ impl Matrix {
     /// - blosum{30, 35, 40, 45, 50, 55, 60, 62, 65, 70, 75, 80, 85, 90, 95, 100}
     /// - pam{10-500 in steps of 10}
     pub fn from(matrix_name: &str) -> Result<Self, MatrixError> {
+        assert!(!matrix_name.is_empty(), "Matrix name should not be empty.");
         let matrix: *const parasail_matrix_t;
         unsafe {
             let matrix_name = CString::new(matrix_name)?;
@@ -165,7 +177,7 @@ impl Matrix {
         }
 
         Ok(Self {
-            inner: matrix.cast_mut(),
+            inner: matrix,
             builtin: true,
         })
     }
@@ -223,9 +235,11 @@ impl Matrix {
     //
     /// Create a new scoring matrix from file.
     pub fn from_file(file: &str) -> Result<Self, MatrixError> {
-        let filepath = std::path::Path::new(file);
+        let filepath = Path::new(file);
         if !filepath.exists() {
-            return Err(MatrixError::FileNotFound(filepath));
+            return Err(MatrixError::FileNotFound(
+                filepath.to_str().unwrap().to_string(),
+            ));
         }
 
         let file = CString::new(file)?;
@@ -234,7 +248,9 @@ impl Matrix {
             let matrix = parasail_matrix_from_file(file.as_ptr());
 
             if matrix.is_null() {
-                return Err(MatrixError::FromFileError(filepath));
+                return Err(MatrixError::FromFileError(
+                    filepath.to_str().unwrap().to_string(),
+                ));
             }
 
             Ok(Self {
@@ -868,6 +884,7 @@ pub struct Traceback {
 }
 
 /// Sequence alignment result.
+#[derive(Debug, Clone)]
 pub struct AlignResult {
     inner: *mut parasail_result_t,
     matrix: *const parasail_matrix_t,
@@ -890,13 +907,13 @@ impl AlignResult {
     }
 
     /// Get number of matches in the alignment.
-    pub fn get_matches(&self) -> Result<i32, io::Error> {
+    pub fn get_matches(&self) -> Result<i32, std::io::Error> {
         if self.is_stats() {
             unsafe { Ok(parasail_result_get_matches(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Matches are not available without stats.",
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Matches are not available without setting use_stats",
             ))
         }
     }
@@ -906,170 +923,142 @@ impl AlignResult {
     }
 
     /// Get alignment length.
-    pub fn get_length(&self) -> Result<i32, io::Error> {
+    pub fn get_length(&self) -> Result<i32, AlignResultError> {
         if self.is_stats() {
             unsafe { Ok(parasail_result_get_length(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Length is not available without stats.",
-            ))
+            Err(AlignResultError::NoStats(String::from("get_length()")))
         }
     }
 
     /// Get score table.
-    pub fn get_score_table(&self) -> Result<i32, io::Error> {
+    pub fn get_score_table(&self) -> Result<i32, AlignResultError> {
         if self.is_table() || self.is_stats_table() {
             unsafe { Ok(*parasail_result_get_score_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Score table is not available without setting use_table",
-            ))
+            Err(AlignResultError::NoTable(String::from("get_score_table()")))
         }
     }
 
     /// Get matches table.
-    pub fn get_matches_table(&self) -> Result<i32, io::Error> {
+    pub fn get_matches_table(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_table() {
             unsafe { Ok(*parasail_result_get_matches_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Matches table is not available without setting use_stats and use_table",
-            ))
+            Err(AlignResultError::NoStatsTable(String::from(
+                "get_matches_table()",
+            )))
         }
     }
 
     /// Get similar table.
-    pub fn get_similar_table(&self) -> Result<i32, io::Error> {
+    pub fn get_similar_table(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_table() {
             unsafe { Ok(*parasail_result_get_similar_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Similar table is not available without setting use_stats and use_table",
-            ))
+            Err(AlignResultError::NoStatsTable(String::from(
+                "get_similar_table()",
+            )))
         }
     }
 
     /// Get length table.
-    pub fn get_length_table(&self) -> Result<i32, io::Error> {
+    pub fn get_length_table(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_table() {
             unsafe { Ok(*parasail_result_get_length_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Length table is not available without setting use_stats and use_table",
-            ))
+            Err(AlignResultError::NoStatsTable(String::from(
+                "get_length_table()",
+            )))
         }
     }
 
     /// Get score row.
-    pub fn get_score_row(&self) -> Result<i32, io::Error> {
+    pub fn get_score_row(&self) -> Result<i32, AlignResultError> {
         if self.is_rowcol() || self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_score_row(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Score row is not available without setting use_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from("get_score_row()")))
         }
     }
 
     /// Get matches row.
-    pub fn get_matches_row(&self) -> Result<i32, io::Error> {
+    pub fn get_matches_row(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_matches_row(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Matches row is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from(
+                "get_matches_row()",
+            )))
         }
     }
 
     /// Get similar row.
-    pub fn get_similar_row(&self) -> Result<i32, io::Error> {
+    pub fn get_similar_row(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_similar_row(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Similar row is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from(
+                "get_similar_row()",
+            )))
         }
     }
 
     /// Get length row.
-    pub fn get_length_row(&self) -> Result<i32, io::Error> {
+    pub fn get_length_row(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_length_row(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Length row is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from("get_length_row()")))
         }
     }
 
     /// Get score column.
-    pub fn get_score_col(&self) -> Result<i32, io::Error> {
+    pub fn get_score_col(&self) -> Result<i32, AlignResultError> {
         if self.is_rowcol() || self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_score_col(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Score column is not available without setting use_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from("get_score_col()")))
         }
     }
 
     /// Get matches column.
-    pub fn get_matches_col(&self) -> Result<i32, io::Error> {
+    pub fn get_matches_col(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_matches_col(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Matches column is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from(
+                "get_matches_col()",
+            )))
         }
     }
 
     /// Get similar column.
-    pub fn get_similar_col(&self) -> Result<i32, io::Error> {
+    pub fn get_similar_col(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_similar_col(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Similar column is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from(
+                "get_similar_col()",
+            )))
         }
     }
 
     /// Get length column
-    pub fn get_length_col(&self) -> Result<i32, io::Error> {
+    pub fn get_length_col(&self) -> Result<i32, AlignResultError> {
         if self.is_stats_rowcol() {
             unsafe { Ok(*parasail_result_get_length_col(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Length column is not available without setting use_stats and use_last_rowcol",
-            ))
+            Err(AlignResultError::NoRowCol(String::from("get_length_col()")))
         }
     }
 
     /// Get trace table.
-    pub fn get_trace_table(&self) -> Result<i32, io::Error> {
+    pub fn get_trace_table(&self) -> Result<i32, AlignResultError> {
         if self.is_trace() {
             unsafe { Ok(*parasail_result_get_trace_table(self.inner)) }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Trace table is not available without setting use_trace",
-            ))
+            Err(AlignResultError::NoTrace(String::from("get_trace_table()")))
         }
     }
 
@@ -1096,7 +1085,7 @@ impl AlignResult {
     // }
 
     /// Get alignment strings and statistics
-    pub fn print_traceback(&self, query: &[u8], reference: &[u8]) -> Result<(), io::Error> {
+    pub fn print_traceback(&self, query: &[u8], reference: &[u8]) {
         if self.is_trace() {
             let query_len = query.len() as i32;
             let ref_len = reference.len() as i32;
@@ -1126,14 +1115,9 @@ impl AlignResult {
                     name_width,
                     use_stats,
                 );
-
-                Ok(())
             }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Alignment string is not available without setting use_trace",
-            ))
+            println!("Alignment string is not available without traceback enabled. Consider using the `use_trace` method on AlignerBuilder.");
         }
     }
 
@@ -1142,7 +1126,7 @@ impl AlignResult {
         &self,
         query: &[u8],
         reference: &[u8],
-    ) -> Result<Traceback, io::Error> {
+    ) -> Result<Traceback, AlignResultError> {
         if self.is_trace() {
             let query_len = query.len() as i32;
             let ref_len = reference.len() as i32;
@@ -1170,26 +1154,25 @@ impl AlignResult {
                     CString::from_raw((*alignment).ref_).into_string().unwrap();
 
                 Ok(Traceback {
-                    query: query_traceback,
-                    comparison: comparison_traceback,
-                    reference: reference_traceback,
+                    query: query_traceback.clone(),
+                    comparison: comparison_traceback.clone(),
+                    reference: reference_traceback.clone(),
                 })
             }
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "Alignment string is not available without setting use_trace",
-            ))
+            return Err(AlignResultError::NoTrace(String::from(
+                "get_traceback_strings()",
+            )));
         }
     }
 
     /// Get CIGAR string.
-    pub fn get_cigar(&self, query: &[u8], reference: &[u8]) -> Result<String, CigarError> {
+    pub fn get_cigar(&self, query: &[u8], reference: &[u8]) -> Result<String, AlignResultError> {
         if self.is_trace() {
             let query_len = query.len() as i32;
-            let query = CString::new(query).unwrap();
+            let query = CString::new(query)?;
             let ref_len = reference.len() as i32;
-            let reference = CString::new(reference).unwrap();
+            let reference = CString::new(reference)?;
 
             let cigar: Result<String, IntoStringError>;
             unsafe {
@@ -1209,7 +1192,7 @@ impl AlignResult {
 
             Ok(cigar?)
         } else {
-            Err(CigarError::NoTracebackError(self.is_trace()))
+            Err(AlignResultError::NoTrace(String::from("get_cigar()")))
         }
     }
 
