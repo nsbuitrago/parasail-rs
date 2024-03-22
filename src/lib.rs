@@ -86,21 +86,29 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum MatrixError {
     #[error("Error creating matrix: {0}")]
-    CreateError(#[from] NulError),
+    CreateErr(#[from] NulError),
     #[error("Error creating matrix from lookup: {0} matrix not found.")]
-    LookupError(String),
+    LookupErr(String),
     #[error("Error creating matrix from file: {0}")]
-    FromFileError(String),
+    FromFileErr(String),
     #[error("File not found: {0}")]
     FileNotFound(String),
     #[error("Error creating PSSM matrix. Invalid alphabet, values, or rows.")]
-    CreatePssmError,
+    CreatePssmErr,
+    #[error("Error creating matrix. Matrix has not been created yet. Consider using the `create` method.")]
+    NullMatrix,
+    #[error("Error converting matrix to PSSM. Matrix is not square.")]
+    NotSquare,
+    #[error("Error setting value on substitution matrix: Matrix must be a user matrix and not builtin. Consider using the `create` method")]
+    NotBuiltIn,
+    #[error("Error setting value on substitution matrix: Index ({0},{1}) out of range ((0,0),({2},{2}))")]
+    InvalidIndex(i32, i32, i32),
 }
 
 #[derive(Error, Debug)]
 pub enum ProfileError {
     #[error("Error creating profile: {0}")]
-    CreateError(#[from] NulError),
+    CreateErr(#[from] NulError),
     #[error("Error creating profile. Null profile returned from parasail.")]
     NullProfile,
 }
@@ -108,7 +116,7 @@ pub enum ProfileError {
 #[derive(Error, Debug)]
 pub enum AlignError {
     #[error("Alignment initialization error: {0}")]
-    AlignInitError(#[from] NulError),
+    AlignInitErr(#[from] NulError),
 }
 
 #[derive(Error, Debug)]
@@ -173,7 +181,7 @@ impl Matrix {
         }
 
         if matrix.is_null() {
-            return Err(MatrixError::LookupError(matrix_name.to_string()));
+            return Err(MatrixError::LookupErr(matrix_name.to_string()));
         }
 
         Ok(Self {
@@ -248,7 +256,7 @@ impl Matrix {
             let matrix = parasail_matrix_from_file(file.as_ptr());
 
             if matrix.is_null() {
-                return Err(MatrixError::FromFileError(
+                return Err(MatrixError::FromFileErr(
                     filepath.to_str().unwrap().to_string(),
                 ));
             }
@@ -268,7 +276,7 @@ impl Matrix {
             let matrix = parasail_matrix_pssm_create(alphabet.as_ptr(), values.as_ptr(), rows);
 
             if matrix.is_null() {
-                return Err(MatrixError::CreatePssmError);
+                return Err(MatrixError::CreatePssmErr);
             }
 
             Ok(Self {
@@ -279,22 +287,21 @@ impl Matrix {
     }
 
     /// Convert a square scoring matrix to a PSSM (position-specific scoring matrix).
-    pub fn to_pssm(self, pssm_query: &[u8]) -> Matrix {
-        let pssm_query_string = CString::new(pssm_query)
-            .unwrap_or_else(|e| panic!("Error converting PSSM query to CString: {}", e));
+    pub fn to_pssm(self, pssm_query: &[u8]) -> Result<Matrix, MatrixError> {
+        assert!(
+            !pssm_query.is_empty(),
+            "PSSM query sequence should not be empty."
+        );
+        let pssm_query_string = CString::new(pssm_query)?;
 
         unsafe {
-            if pssm_query.len() == 0 {
-                panic!("PSSM query sequence is empty.")
-            }
-
             let matrix = parasail_matrix_copy(self.inner);
             if matrix.is_null() {
-                panic!("Matrix is null. First, create a matrix using `create` or `from` methods.")
+                return Err(MatrixError::NullMatrix);
             }
 
             if (*self.inner).type_ != 0 {
-                panic!("Matrix type is not square.")
+                return Err(MatrixError::NotSquare);
             }
 
             let converted_matrix = parasail_matrix_convert_square_to_pssm(
@@ -307,38 +314,34 @@ impl Matrix {
                 panic!("Erro converting matrix to PSSM. Invalid query sequence.")
             }
 
-            Matrix {
+            Ok(Matrix {
                 inner: converted_matrix,
                 builtin: self.builtin,
-            }
+            })
         }
     }
 
     /// Set value at a given row and column in a user defined substitution matrix.
-    pub fn set_value(&mut self, row: i32, col: i32, value: i32) {
+    pub fn set_value(&mut self, row: i32, col: i32, value: i32) -> Result<(), MatrixError> {
         if self.builtin {
-            panic!("Only user defined matrix can be modified (consider using `create` method)");
+            return Err(MatrixError::NotBuiltIn);
         }
 
         unsafe {
             let size = (*self.inner).size - 2;
 
             if size < 0 {
-                panic!(
-                    "Error setting value on Matrix with size ({},{}).",
-                    size, size
-                );
+                return Err(MatrixError::NullMatrix);
             }
 
             if row < 0 || row > size || col < 0 || col > size {
-                panic!(
-                    "Error setting value on substitution matrix. Index ({},{}) out of range ((0,0),({},{})",
-                    row, col, size, size
-                );
+                return Err(MatrixError::InvalidIndex(row, col, size));
             }
 
             parasail_matrix_set_value(self.inner.cast_mut(), row, col, value);
         }
+
+        Ok(())
     }
 }
 
@@ -907,14 +910,11 @@ impl AlignResult {
     }
 
     /// Get number of matches in the alignment.
-    pub fn get_matches(&self) -> Result<i32, std::io::Error> {
+    pub fn get_matches(&self) -> Result<i32, AlignResultError> {
         if self.is_stats() {
             unsafe { Ok(parasail_result_get_matches(self.inner)) }
         } else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Matches are not available without setting use_stats",
-            ))
+            Err(AlignResultError::NoStats(String::from("get_matches()")))
         }
     }
 
