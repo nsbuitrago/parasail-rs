@@ -1,6 +1,6 @@
 # parasail-rs
 
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nsbuitrago/parasail-rs/test.yml) ![Crates.io Version](https://img.shields.io/crates/v/parasail-rs)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nsbuitrago/parasail-rs/test.yml) [![docs.rs](https://img.shields.io/docsrs/parasail-rs)](https://docs.rs/parasail-rs/latest/parasail-rs/index.html) ![Crates.io Version](https://img.shields.io/crates/v/parasail-rs)
 
 This crate provides safe Rust bindings and a wrapper to [parasail](https://github.com/jeffdaily/parasail/tree/master), a SIMD pairwise sequence alignment C library. Note that this crate is still under development and is unstable.
 
