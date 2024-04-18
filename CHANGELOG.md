@@ -2,6 +2,14 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.7.2 - 2024.04.17
+
+### Bug Fixes
+
+- AlignerFn enum uses *const c_char in expected fn signature instead of *const i8 as before
+- With fix above, we can use as_ptr() as in the query/ref and parasail fn name as
+before without casting to *const i8!
+
 ## 0.7.1 - 2024.04.17
 
 - Upgrade dependencies. Notably libparasail-sys -> 0.1.6

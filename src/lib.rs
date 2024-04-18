@@ -52,6 +52,7 @@
 //! }
 //!
 
+use libc::c_char;
 use libparasail_sys::{
     parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_lookup_function,
     parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_copy,
@@ -479,9 +480,9 @@ enum AlignerFn {
     Function(
         Option<
             unsafe extern "C" fn(
-                *const i8,
+                *const c_char,
                 i32,
-                *const i8,
+                *const c_char,
                 i32,
                 i32,
                 i32,
@@ -493,7 +494,7 @@ enum AlignerFn {
         Option<
             unsafe extern "C" fn(
                 *const parasail_profile_t,
-                *const i8,
+                *const c_char,
                 i32,
                 i32,
                 i32,
@@ -772,13 +773,11 @@ impl AlignerBuilder {
 
         if self.profile.is_null() {
             unsafe {
-                parasail_fn =
-                    AlignerFn::Function(parasail_lookup_function(fn_name.as_ptr() as *const i8));
+                parasail_fn = AlignerFn::Function(parasail_lookup_function(fn_name.as_ptr()));
             }
         } else {
             unsafe {
-                parasail_fn =
-                    AlignerFn::PFunction(parasail_lookup_pfunction(fn_name.as_ptr() as *const i8));
+                parasail_fn = AlignerFn::PFunction(parasail_lookup_pfunction(fn_name.as_ptr()));
             }
         };
 
@@ -835,9 +834,9 @@ impl Aligner {
                     let query = CString::new(query)?;
                     // already checked that aligner function f is some variant during build step
                     let result = f.unwrap()(
-                        query.as_ptr() as *const i8,
+                        query.as_ptr(),
                         query_len,
-                        reference.as_ptr() as *const i8,
+                        reference.as_ptr(),
                         ref_len,
                         self.gap_open,
                         self.gap_extend,
@@ -854,7 +853,7 @@ impl Aligner {
                 // already checked that aligner function f is some variant during build step
                 let result = f.unwrap()(
                     **self.profile,
-                    reference.as_ptr() as *const i8,
+                    reference.as_ptr(),
                     ref_len,
                     self.gap_open,
                     self.gap_extend,
