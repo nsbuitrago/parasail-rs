@@ -2,6 +2,16 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.7.1 - 2024.04.17
+
+- Upgrade dependencies. Notably libparasail-sys -> 0.1.6
+
+### Bug Fixes
+
+- Use *const i8 casting for passing fn_name into `parasail_lookup_function`
+and query/reference to alignment fn. This attempts to solve a compilation
+issue on aarch64 linux with gcc-multilib available.
+
 ## 0.7.0 - 2024.03.20
 
 ### Features
@@ -49,7 +59,7 @@ All notable changes will be documented here in reverse chronological order the h
 - Aligner builder takes now has a mode method to set alignment algorithm (nw, sg, sw).
 - Many wrapper alignment methods removed in favor of single align method.
 
-### Bug Fixes.
+### Bug Fixes
 
 - constructing parasail fn names from Aligner builder to avoid building on every alignment.
 

@@ -527,13 +527,15 @@ pub struct AlignerBuilder {
     use_trace: String,
 }
 
+/// Default aligner is a global alignment with an identity matrix for DNA sequences.
+/// and no gap penalties. No profile, trace, table, or stats options are set. Vectorization strategy is set to striped by default.
 impl Default for AlignerBuilder {
     fn default() -> Self {
         AlignerBuilder {
             mode: String::from("nw"),
             matrix: Matrix::default().into(),
-            gap_open: 5,
-            gap_extend: 2,
+            gap_open: 0,
+            gap_extend: 0,
             profile: Profile::default().into(),
             allow_query_gaps: Vec::default(),
             allow_ref_gaps: Vec::default(),
@@ -770,11 +772,13 @@ impl AlignerBuilder {
 
         if self.profile.is_null() {
             unsafe {
-                parasail_fn = AlignerFn::Function(parasail_lookup_function(fn_name.as_ptr()));
+                parasail_fn =
+                    AlignerFn::Function(parasail_lookup_function(fn_name.as_ptr() as *const i8));
             }
         } else {
             unsafe {
-                parasail_fn = AlignerFn::PFunction(parasail_lookup_pfunction(fn_name.as_ptr()));
+                parasail_fn =
+                    AlignerFn::PFunction(parasail_lookup_pfunction(fn_name.as_ptr() as *const i8));
             }
         };
 
@@ -831,9 +835,9 @@ impl Aligner {
                     let query = CString::new(query)?;
                     // already checked that aligner function f is some variant during build step
                     let result = f.unwrap()(
-                        query.as_ptr(),
+                        query.as_ptr() as *const i8,
                         query_len,
-                        reference.as_ptr(),
+                        reference.as_ptr() as *const i8,
                         ref_len,
                         self.gap_open,
                         self.gap_extend,
@@ -850,7 +854,7 @@ impl Aligner {
                 // already checked that aligner function f is some variant during build step
                 let result = f.unwrap()(
                     **self.profile,
-                    reference.as_ptr(),
+                    reference.as_ptr() as *const i8,
                     ref_len,
                     self.gap_open,
                     self.gap_extend,
@@ -1062,6 +1066,7 @@ impl AlignResult {
         }
     }
 
+    /// FIXME: need to fix these two methods
     /// Get trace insertion table.
     // pub fn get_trace_ins_table(&self) -> Result<*mut i32, io::Error> {
     //     if self.is_trace() {
