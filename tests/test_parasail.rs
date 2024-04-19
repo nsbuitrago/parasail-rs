@@ -619,6 +619,19 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 #[test]
+pub fn test_banded_nw() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().bandwith(2).build();
+    let result = aligner.banded_nw(query, reference)?;
+    let expected_score = query.len() as i32;
+
+    assert_eq!(result.get_score(), expected_score);
+
+    Ok(())
+}
+
+#[test]
 pub fn test_ssw_alignment() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
