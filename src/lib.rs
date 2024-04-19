@@ -58,14 +58,15 @@ use libparasail_sys::{
     parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_copy,
     parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file,
     parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_set_value,
-    parasail_matrix_t, parasail_profile_create_sat, parasail_profile_create_stats_sat,
-    parasail_profile_free, parasail_profile_t, parasail_result_free, parasail_result_get_cigar,
-    parasail_result_get_end_query, parasail_result_get_end_ref, parasail_result_get_length,
-    parasail_result_get_length_col, parasail_result_get_length_row,
-    parasail_result_get_length_table, parasail_result_get_matches, parasail_result_get_matches_col,
-    parasail_result_get_matches_row, parasail_result_get_matches_table, parasail_result_get_score,
-    parasail_result_get_score_col, parasail_result_get_score_row, parasail_result_get_score_table,
-    parasail_result_get_similar, parasail_result_get_similar_col, parasail_result_get_similar_row,
+    parasail_matrix_t, parasail_nw_banded, parasail_profile_create_sat,
+    parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t,
+    parasail_result_free, parasail_result_get_cigar, parasail_result_get_end_query,
+    parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_length_col,
+    parasail_result_get_length_row, parasail_result_get_length_table, parasail_result_get_matches,
+    parasail_result_get_matches_col, parasail_result_get_matches_row,
+    parasail_result_get_matches_table, parasail_result_get_score, parasail_result_get_score_col,
+    parasail_result_get_score_row, parasail_result_get_score_table, parasail_result_get_similar,
+    parasail_result_get_similar_col, parasail_result_get_similar_row,
     parasail_result_get_similar_table, parasail_result_get_trace_table,
     parasail_result_get_traceback, parasail_result_is_banded, parasail_result_is_blocked,
     parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol,
@@ -118,6 +119,8 @@ pub enum ProfileError {
 pub enum AlignError {
     #[error("Alignment initialization error: {0}")]
     AlignInitErr(#[from] NulError),
+    #[error("No bandwith set for banded alignment.")]
+    NoBandwith,
 }
 
 #[derive(Error, Debug)]
@@ -136,6 +139,8 @@ pub enum AlignResultError {
     CigarToStringErr(#[from] IntoStringError),
     #[error("Error creating new CString: {0}")]
     NewCStringErr(#[from] NulError),
+    #[error("No bandwith set for banded alignment.")]
+    NoBandwith,
 }
 
 /// Substitution matrix for sequence alignment.
@@ -526,6 +531,7 @@ pub struct AlignerBuilder {
     use_stats: String,
     use_table: String,
     use_trace: String,
+    bandwith: Option<i32>,
 }
 
 /// Default aligner is a global alignment with an identity matrix for DNA sequences.
@@ -544,6 +550,7 @@ impl Default for AlignerBuilder {
             use_stats: String::default(),
             use_table: String::default(),
             use_trace: String::default(),
+            bandwith: None,
         }
     }
 }
@@ -766,6 +773,11 @@ impl AlignerBuilder {
         parasail_fn_name
     }
 
+    pub fn bandwith(&mut self, bandwith: i32) -> &mut Self {
+        self.bandwith = Some(bandwith);
+        self
+    }
+
     /// Build the aligner.
     pub fn build(&mut self) -> Aligner {
         let fn_name = self.get_parasail_fn_name();
@@ -795,6 +807,7 @@ impl AlignerBuilder {
             gap_extend: self.gap_extend,
             profile: Arc::clone(&self.profile),
             vec_strategy: self.vec_strategy.clone(),
+            bandwith: self.bandwith,
         }
     }
 }
@@ -807,6 +820,7 @@ pub struct Aligner {
     pub gap_extend: i32,
     profile: Arc<Profile>,
     pub vec_strategy: String,
+    bandwith: Option<i32>,
 }
 
 impl Aligner {
@@ -864,6 +878,41 @@ impl Aligner {
                     matrix: **self.matrix,
                 })
             },
+        }
+    }
+
+    /// Peform banded global alignment between a query and reference sequence.
+    /// Note that this function is not vectorized. However, it may be useful
+    /// for aligning large sequences.
+    pub fn banded_nw(&self, query: &[u8], reference: &[u8]) -> Result<AlignResult, AlignError> {
+        let ref_len = reference.len() as i32;
+        let reference = CString::new(reference)?;
+
+        let query_len = query.len() as i32;
+        let query = CString::new(query)?;
+
+        let bandwith = if let Some(bandwith) = self.bandwith {
+            bandwith
+        } else {
+            return Err(AlignError::NoBandwith);
+        };
+
+        unsafe {
+            let result = parasail_nw_banded(
+                query.as_ptr(),
+                query_len,
+                reference.as_ptr(),
+                ref_len,
+                self.gap_open,
+                self.gap_extend,
+                bandwith,
+                **self.matrix,
+            );
+
+            Ok(AlignResult {
+                inner: result,
+                matrix: **self.matrix,
+            })
         }
     }
 }
