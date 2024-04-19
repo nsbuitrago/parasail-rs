@@ -72,7 +72,8 @@ use libparasail_sys::{
     parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg,
     parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table,
     parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table,
-    parasail_result_is_trace, parasail_result_t, parasail_traceback_generic,
+    parasail_result_is_trace, parasail_result_ssw_free, parasail_result_ssw_t, parasail_result_t,
+    parasail_ssw, parasail_traceback_generic,
 };
 
 use log::warn;
@@ -441,6 +442,26 @@ impl Profile {
             }
         }
     }
+
+    //pub fn ssw_init(query: &[u8], matrix: &Matrix, score_size: i8) -> Result<Self, ProfileError> {
+    //    let query_len = query.len() as i32;
+    //    if query_len == 0 {
+    //        panic!("Query sequence is empty.");
+    //    }
+    //    let query = CString::new(query)?;
+    //
+    //    unsafe {
+    //        let profile = parasail_ssw_init(query.as_ptr(), query_len, **matrix, score_size);
+    //        if profile.is_null() {
+    //            return Err(ProfileError::NullProfile);
+    //        }
+    //
+    //        Ok(Profile {
+    //            inner: profile,
+    //            use_stats: false,
+    //        })
+    //    }
+    //}
 }
 
 /// Default profile is a null pointer
@@ -866,6 +887,50 @@ impl Aligner {
             },
         }
     }
+
+    /// Perform Striped Smith-Waterman local alignment using SSE2 instructions.
+    pub fn ssw(&self, query: Option<&[u8]>, reference: &[u8]) -> Result<SSWResult, AlignError> {
+        let ref_len = reference.len() as i32;
+        let reference = CString::new(reference)?;
+
+        if query.is_some() {
+            let query = query.unwrap();
+            let query_len = query.len() as i32;
+
+            unsafe {
+                let query = CString::new(query)?;
+                let result = parasail_ssw(
+                    query.as_ptr(),
+                    query_len,
+                    reference.as_ptr(),
+                    ref_len,
+                    self.gap_open,
+                    self.gap_extend,
+                    **self.matrix,
+                );
+
+                Ok(SSWResult {
+                    inner: result, // matrix: **self.matrix,
+                })
+            }
+        } else {
+            panic!("Query sequence is required for SSW alignment for now.");
+            //unsafe {
+            //    // need to check if the profile is of type parasail_profile_t
+            //    let result = parasail_ssw_profile(
+            //        **self.profile,
+            //        reference.as_ptr(),
+            //        ref_len,
+            //        self.gap_open,
+            //        self.gap_extend,
+            //    );
+            //
+            //    Ok(SSWResult {
+            //        inner: result, //matrix: **self.matrix,
+            //    })
+            //}
+        }
+    }
 }
 
 /// CIGAR string for sequence alignment.
@@ -1282,5 +1347,52 @@ impl Drop for AlignResult {
         unsafe {
             parasail_result_free(self.inner);
         }
+    }
+}
+
+/// SSW alignment result.
+pub struct SSWResult {
+    inner: *mut parasail_result_ssw_t,
+}
+
+impl SSWResult {
+    /// Get primary alignment score.
+    pub fn score(&self) -> u16 {
+        unsafe { (*self.inner).score1 }
+    }
+
+    /// Get beginning location of alignment on the reference sequence.
+    pub fn ref_start(&self) -> i32 {
+        unsafe { (*self.inner).ref_begin1 }
+    }
+
+    /// Get ending location of alignment on the reference sequence.
+    pub fn ref_end(&self) -> i32 {
+        unsafe { (*self.inner).ref_end1 }
+    }
+
+    /// Get beginning location of alignment on the query sequence.
+    pub fn query_start(&self) -> i32 {
+        unsafe { (*self.inner).read_begin1 }
+    }
+
+    /// Get ending location of alignment on the query sequence.
+    pub fn query_end(&self) -> i32 {
+        unsafe { (*self.inner).read_end1 }
+    }
+
+    //pub fn cigar(&self) -> *mut u32 {
+    //    unsafe { (*self.inner).cigar }
+    //}
+
+    //pub fn cigar_len(&self) -> i32 {
+    //    unsafe { (*self.inner).cigarLen }
+    //}
+}
+
+#[doc(hidden)]
+impl Drop for SSWResult {
+    fn drop(&mut self) {
+        unsafe { parasail_result_ssw_free(self.inner) }
     }
 }

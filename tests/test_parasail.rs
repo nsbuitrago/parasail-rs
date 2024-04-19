@@ -617,3 +617,23 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
 
     Ok(())
 }
+
+#[test]
+pub fn test_ssw_alignment() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().build();
+    let result = aligner.ssw(Some(query), reference)?;
+
+    let checks = query.len() as u16;
+    let end = checks as i32 - 1;
+    let start: i32 = 0;
+
+    assert_eq!(result.score(), checks);
+    assert_eq!(result.query_end(), end);
+    assert_eq!(result.ref_end(), end);
+    assert_eq!(result.query_start(), start);
+    assert_eq!(result.ref_start(), start);
+
+    Ok(())
+}
