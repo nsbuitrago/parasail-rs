@@ -453,30 +453,6 @@ pub fn trace_table() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-// #[test]
-// pub fn trace_ins_table() -> Result<(), Box<dyn std::error::Error>> {
-//     let query = b"ACGTA";
-//     let reference = b"ACGTTA";
-//     let aligner = Aligner::new().use_trace().build();
-//     let result = aligner.global(query, reference);
-//     assert!(result.is_trace());
-//     // println!("Trace ins table: {:?}", result.get_trace_ins_table()?);
-//
-//     Ok(())
-// }
-
-// #[test]
-// pub fn trace_del_table() -> Result<(), Box<dyn std::error::Error>> {
-//     let query = b"ACGT";
-//     let reference = b"ACGT";
-//     let aligner = Aligner::new().use_trace().build();
-//     let result = aligner.global(query, reference);
-//     assert!(result.is_trace());
-//     println!("Trace del table: {:?}", result.get_trace_del_table()?);
-//
-//     Ok(())
-// }
-
 #[test]
 pub fn get_traceback_strings() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
@@ -614,6 +590,39 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
     })
     .join()
     .unwrap();
+
+    Ok(())
+}
+
+#[test]
+pub fn test_banded_nw() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().bandwith(2).build();
+    let result = aligner.banded_nw(query, reference)?;
+    let expected_score = query.len() as i32;
+
+    assert_eq!(result.get_score(), expected_score);
+
+    Ok(())
+}
+
+#[test]
+pub fn test_ssw_alignment() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().build();
+    let result = aligner.ssw(Some(query), reference)?;
+
+    let checks = query.len() as u16;
+    let end = checks as i32 - 1;
+    let start: i32 = 0;
+
+    assert_eq!(result.score(), checks);
+    assert_eq!(result.query_end(), end);
+    assert_eq!(result.ref_end(), end);
+    assert_eq!(result.query_start(), start);
+    assert_eq!(result.ref_start(), start);
 
     Ok(())
 }
