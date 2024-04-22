@@ -1130,29 +1130,6 @@ impl AlignResult {
         }
     }
 
-    /// FIXME: need to fix these two methods
-    /// Get trace insertion table.
-    // pub fn get_trace_ins_table(&self) -> Result<*mut i32, io::Error> {
-    //     if self.is_trace() {
-    //         unsafe {
-    //             Ok(parasail_result_get_trace_ins_table(self.inner))
-    //         }
-    //     } else {
-    //         Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
-    //     }
-    // }
-
-    /// Get trace deletion table.
-    // pub fn get_trace_del_table(&self) -> Result<*mut i32, io::Error> {
-    //     if self.is_trace() {
-    //         unsafe {
-    //             Ok(parasail_result_get_trace_del_table(self.inner))
-    //         }
-    //     } else {
-    //         Err(io::Error::new(io::ErrorKind::Other, "Trace insertion table is not available without setting use_trace"))
-    //     }
-    // }
-
     /// Get alignment strings and statistics
     pub fn print_traceback(&self, query: &[u8], reference: &[u8]) {
         if self.is_trace() {
