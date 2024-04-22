@@ -2,6 +2,25 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.7.3 - XXXX.XX.XX
+
+### Features
+
+- Add SSW library emulation. The `ssw` method on `Aligner` performs
+striped Smith-Waterman local alignment using SSE2 instructions. Support for
+profiles will be supported in a later release.
+- A new `SSWResult` has been added and is returned from successful `ssw`
+alignment. With SSWResult, you can get the primary alignment score, along with
+start and end locations of the alignment on the query or reference.
+- Add banded global (Needleman-Wuncsh) alignment. The `banded_ssw` method
+on `Aligner` performs a banded global alignment. 
+- Add `bandwith` method on `AlignerBuilder` to set the band with for banded nw
+alignment.
+
+### Improvements
+
+- Updated doc strings in lib.rs
+
 ## 0.7.2 - 2024.04.17
 
 ### Bug Fixes
@@ -165,22 +184,4 @@ New methods for AlignResults:
 
 - Implements global, semi-global, and local alignment.
 - Supports query profiles or one-off alignments.
-
---
-
-TODO:
-Implement AlignResult methods:
-    - [ ] get_trace_ins_table
-    - [ ] get_trace_del_table
-- [ ] convert panics to better errors
-    - [ ] use results for handling errors
-- [ ] convert unwraps for better error handling
-- [x] using new builder pattern for Aligner
-- [x] global, local, and semi_global alignment stats functions
-- [x] implement different semi_global variants
-- [x] local alignment implementation
-- [x] semi-global alignment implementation
-- [x] tests for scoring matrices and alignments
-- [x] query profiles and corresponding functions
-- [x] Work on adding safety to bindings
 

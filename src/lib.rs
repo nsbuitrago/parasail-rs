@@ -1,13 +1,13 @@
 //! # Introduction
 //!
-//! This crate provides safe Rust bindings to the [Parasail](https://github.com/jeffdaily/parasail), a SIMD C library for pairwise sequence alignments.
+//! This crate provides safe Rust bindings to
+//! [Parasail](https://github.com/jeffdaily/parasail), a SIMD pairwise sequence
+//! alignment library.
 //!
-//! Note that this crate is under development and the bindings may not be complete. For unsafe
-//! bindings, see the [libparasail-sys](https://crates.io/crates/libparasail-sys) crate.
+//! For unsafe bindings, see the
+//! [libparasail-sys](https://crates.io/crates/libparasail-sys) crate.
 //!
 //! # Usage
-//!
-//! Install parasail-rs by running `cargo add parasail-rs` in your project directory.
 //!
 //! ## Examples
 //!
@@ -28,6 +28,11 @@
 //! ```
 //!
 //! ### Using query profile
+//!
+//! When using striped or scan vectorization strategies, some performance may
+//! be gained by reusing the query sequence. This can be done by creating a
+//! query profile and reusing it for multiple alignments.
+//!
 //! ```rust,no_run
 //! use parasail_rs::{Matrix, Aligner, Profile};
 //!
@@ -158,7 +163,8 @@ pub struct Matrix {
 
 impl Matrix {
     /// Create a new scoring matrix from an alphabet and match/mismatch scores.
-    /// Note that match score should be a positive integer, while mismatch score should be a negative integer.
+    /// Note that match score should be a positive integer, while mismatch score
+    /// should be a negative integer.
     pub fn create(
         alphabet: &[u8],
         match_score: i32,
@@ -178,7 +184,7 @@ impl Matrix {
     /// Create a new scoring matrix from a pre-defined matrix.
     /// The matrix name should be one of the following:
     /// - blosum{30, 35, 40, 45, 50, 55, 60, 62, 65, 70, 75, 80, 85, 90, 95, 100}
-    /// - pam{10-500 in steps of 10}
+    /// - pam{10-500} (in steps of 10, i.e., pam10, pam20, ... pam500).
     pub fn from(matrix_name: &str) -> Result<Self, MatrixError> {
         assert!(!matrix_name.is_empty(), "Matrix name should not be empty.");
         let matrix: *const parasail_matrix_t;
@@ -201,54 +207,56 @@ impl Matrix {
     /// Files should contain either square or position-specific scoring matrices.
     /// Examples are direcly from the [Parasail C lib docs](https://github.com/jeffdaily/parasail?tab=readme-ov-file#substitution-matrices).
     /// Square:
+    /// ```plaintext
     ///#
-    // # Any line starting with '#' is a comment.
-    // #
-    // # Needs a row for the alphabet.  First column is a repeat of the
-    // # alphabet and assumed to be identical in order to the first alphabet row.
-    // #
-    // # Last row and column *must* be a non-alphabet character to represent
-    // # any input sequence character that is outside of the alphabet.
-    // #
-    //     A   T   G   C   S   W   R   Y   K   M   B   V   H   D   N   U   *
-    // A   5  -4  -4  -4  -4   1   1  -4  -4   1  -4  -1  -1  -1  -2  -4  -5
-    // T  -4   5  -4  -4  -4   1  -4   1   1  -4  -1  -4  -1  -1  -2   5  -5
-    // G  -4  -4   5  -4   1  -4   1  -4   1  -4  -1  -1  -4  -1  -2  -4  -5
-    // C  -4  -4  -4   5   1  -4  -4   1  -4   1  -1  -1  -1  -4  -2  -4  -5
-    // S  -4  -4   1   1  -1  -4  -2  -2  -2  -2  -1  -1  -3  -3  -1  -4  -5
-    // W   1   1  -4  -4  -4  -1  -2  -2  -2  -2  -3  -3  -1  -1  -1   1  -5
-    // R   1  -4   1  -4  -2  -2  -1  -4  -2  -2  -3  -1  -3  -1  -1  -4  -5
-    // Y  -4   1  -4   1  -2  -2  -4  -1  -2  -2  -1  -3  -1  -3  -1   1  -5
-    // K  -4   1   1  -4  -2  -2  -2  -2  -1  -4  -1  -3  -3  -1  -1   1  -5
-    // M   1  -4  -4   1  -2  -2  -2  -2  -4  -1  -3  -1  -1  -3  -1  -4  -5
-    // B  -4  -1  -1  -1  -1  -3  -3  -1  -1  -3  -1  -2  -2  -2  -1  -1  -5
-    // V  -1  -4  -1  -1  -1  -3  -1  -3  -3  -1  -2  -1  -2  -2  -1  -4  -5
-    // H  -1  -1  -4  -1  -3  -1  -3  -1  -3  -1  -2  -2  -1  -2  -1  -1  -5
-    // D  -1  -1  -1  -4  -3  -1  -1  -3  -1  -3  -2  -2  -2  -1  -1  -1  -5
-    // N  -2  -2  -2  -2  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -2  -5
-    // U  -4   5  -4  -4  -4   1  -4   1   1  -4  -1  -4  -1  -1  -2   5  -5
-    // *  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5
+    /// # Any line starting with '#' is a comment.
+    /// #
+    /// # Needs a row for the alphabet.  First column is a repeat of the
+    /// # alphabet and assumed to be identical in order to the first alphabet row.
+    /// #
+    /// # Last row and column *must* be a non-alphabet character to represent
+    /// # any input sequence character that is outside of the alphabet.
+    /// #
+    ///     A   T   G   C   S   W   R   Y   K   M   B   V   H   D   N   U   *
+    /// A   5  -4  -4  -4  -4   1   1  -4  -4   1  -4  -1  -1  -1  -2  -4  -5
+    /// T  -4   5  -4  -4  -4   1  -4   1   1  -4  -1  -4  -1  -1  -2   5  -5
+    /// G  -4  -4   5  -4   1  -4   1  -4   1  -4  -1  -1  -4  -1  -2  -4  -5
+    /// C  -4  -4  -4   5   1  -4  -4   1  -4   1  -1  -1  -1  -4  -2  -4  -5
+    /// S  -4  -4   1   1  -1  -4  -2  -2  -2  -2  -1  -1  -3  -3  -1  -4  -5
+    /// W   1   1  -4  -4  -4  -1  -2  -2  -2  -2  -3  -3  -1  -1  -1   1  -5
+    /// R   1  -4   1  -4  -2  -2  -1  -4  -2  -2  -3  -1  -3  -1  -1  -4  -5
+    /// Y  -4   1  -4   1  -2  -2  -4  -1  -2  -2  -1  -3  -1  -3  -1   1  -5
+    /// K  -4   1   1  -4  -2  -2  -2  -2  -1  -4  -1  -3  -3  -1  -1   1  -5
+    /// M   1  -4  -4   1  -2  -2  -2  -2  -4  -1  -3  -1  -1  -3  -1  -4  -5
+    /// B  -4  -1  -1  -1  -1  -3  -3  -1  -1  -3  -1  -2  -2  -2  -1  -1  -5
+    /// V  -1  -4  -1  -1  -1  -3  -1  -3  -3  -1  -2  -1  -2  -2  -1  -4  -5
+    /// H  -1  -1  -4  -1  -3  -1  -3  -1  -3  -1  -2  -2  -1  -2  -1  -1  -5
+    /// D  -1  -1  -1  -4  -3  -1  -1  -3  -1  -3  -2  -2  -2  -1  -1  -1  -5
+    /// N  -2  -2  -2  -2  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -1  -2  -5
+    /// U  -4   5  -4  -4  -4   1  -4   1   1  -4  -1  -4  -1  -1  -2   5  -5
+    /// *  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5
+    /// ```
     ///
     /// PSSM:
+    /// ```plaintext
     ///#
-    // # Any line starting with '#' is a comment.
-    // #
-    // # Needs a first row for the alphabet.
-    // # First column containing a representative sequence is optional, but included below for an example.
-    // #
-    //     A   G   I   L   V   M   F   W   P   C   S   T   Y   N   Q   H   K   R   D   E
-    // Y  -5  -6   3  -4   2   1   4  -3   0  -5   0  -4   6  0  -5   -4  -5   2  -6  -5
-    // S  -1  -5   2  -2   0  -4   1  -6   0   1   3   3  -4  -4  -4  -5  -1   1  -5  -1
-    // C  -4  -6  -5  -5  -4  -5  -6  -6  -6  12  -4  -4  -6  -6  -7  -7  -7  -7  -7  -7
-    // D  -1  -5  -7  -7  -6  -6  -7  -7  -5  -7  -3  -1  -6   4  -3   3   0  -1   7  -2
-    // G   0   4   1  -2  -2  -5  -5  -6  -6   5  -2   0   0   2  -4   3  -5  -5  -5   0
-    // C  -4  -6  -5  -5  -4  -5  -6  -6  -6  12  -4  -4  -6  -6  -7  -7  -7  -7  -7  -7
-    // L  -4   3  -1   3  -1  -3  -5  -6  -5  -6   0  -4  -5   1   3  -5   1   0  -1  -1
-    // K  -2   1   1  -2  -1   3  -5  -6  -5  -5   2   2   0   1   1   1   2  -4  -4   0
-    // P  -2   0  -4   0  -2  -4  -5  -5   5  -5  -3  -1   1   1  -3   2  -4  -4   1   3
-    // I  -5  -7   7   1   0  -2   3  -5  -6  -5   0  -4  -4  -1  -6   3  -6  -6  -6  -6
-    //
-    /// Create a new scoring matrix from file.
+    /// # Any line starting with '#' is a comment.
+    /// #
+    /// # Needs a first row for the alphabet.
+    /// # First column containing a representative sequence is optional, but included below for an example.
+    /// #
+    ///     A   G   I   L   V   M   F   W   P   C   S   T   Y   N   Q   H   K   R   D   E
+    /// Y  -5  -6   3  -4   2   1   4  -3   0  -5   0  -4   6  0  -5   -4  -5   2  -6  -5
+    /// S  -1  -5   2  -2   0  -4   1  -6   0   1   3   3  -4  -4  -4  -5  -1   1  -5  -1
+    /// C  -4  -6  -5  -5  -4  -5  -6  -6  -6  12  -4  -4  -6  -6  -7  -7  -7  -7  -7  -7
+    /// D  -1  -5  -7  -7  -6  -6  -7  -7  -5  -7  -3  -1  -6   4  -3   3   0  -1   7  -2
+    /// G   0   4   1  -2  -2  -5  -5  -6  -6   5  -2   0   0   2  -4   3  -5  -5  -5   0
+    /// C  -4  -6  -5  -5  -4  -5  -6  -6  -6  12  -4  -4  -6  -6  -7  -7  -7  -7  -7  -7
+    /// L  -4   3  -1   3  -1  -3  -5  -6  -5  -6   0  -4  -5   1   3  -5   1   0  -1  -1
+    /// K  -2   1   1  -2  -1   3  -5  -6  -5  -5   2   2   0   1   1   1   2  -4  -4   0
+    /// P  -2   0  -4   0  -2  -4  -5  -5   5  -5  -3  -1   1   1  -3   2  -4  -4   1   3
+    /// I  -5  -7   7   1   0  -2   3  -5  -6  -5   0  -4  -4  -1  -6   3  -6  -6  -6  -6
+    /// ```
     pub fn from_file(file: &str) -> Result<Self, MatrixError> {
         let filepath = Path::new(file);
         if !filepath.exists() {
@@ -501,7 +509,7 @@ unsafe impl Send for Profile {}
 #[doc(hidden)]
 unsafe impl Sync for Profile {}
 
-/// Parasail alignment function.
+/// Parasail alignment function type.
 enum AlignerFn {
     Function(
         Option<
@@ -555,8 +563,9 @@ pub struct AlignerBuilder {
     bandwith: Option<i32>,
 }
 
-/// Default aligner is a global alignment with an identity matrix for DNA sequences.
-/// and no gap penalties. No profile, trace, table, or stats options are set. Vectorization strategy is set to striped by default.
+/// Default aligner uses global alignment with an identity matrix for DNA
+/// sequences and no gap penalties. No profile, trace, table, or stats options
+/// are set. Vectorization strategy is set to striped by default.
 impl Default for AlignerBuilder {
     fn default() -> Self {
         AlignerBuilder {
@@ -597,20 +606,21 @@ impl AlignerBuilder {
 
     /// Set scoring matrix. The default is an identity matrix for DNA sequences.
     /// For more information on creating matrices, see the [Matrix](https://docs.rs/parasail-rs/latest/parasail_rs/struct.Matrix.html) struct.
+    /// Default is an identity matrix for DNA sequences.
     pub fn matrix(&mut self, matrix: Matrix) -> &mut Self {
         self.matrix = Arc::new(matrix);
         self
     }
 
-    /// Set gap open penalty (Note that this should be passed as a positive integer).
-    /// Default is 5.
+    /// Set gap open penalty.
+    /// Note that this should be passed as a positive integer. Default = 5.
     pub fn gap_open(&mut self, gap_open: i32) -> &mut Self {
         self.gap_open = gap_open;
         self
     }
 
-    /// Set gap extend penalty (Note that this should be passed as a positive integer).
-    /// Default is 2
+    /// Set gap extend penalty.
+    /// Note that this should be passed as a positive integer. Default = 2
     pub fn gap_extend(&mut self, gap_extend: i32) -> &mut Self {
         self.gap_extend = gap_extend;
         self
@@ -670,9 +680,9 @@ impl AlignerBuilder {
         self
     }
 
-    /// Set whether to use statistics for alignment. By default, statistics are not used.
-    /// Note that enabling stats and traceback is not supported. Enabling stats will disable
-    /// traceback if it is enabled.
+    /// Set whether to use statistics for alignment. By default, statistics are
+    /// not used. Note that enabling stats and traceback is not supported.
+    /// Enabling stats will disable traceback if it is enabled.
     pub fn use_stats(&mut self) -> &mut Self {
         self.use_stats = String::from("_stats");
 
@@ -685,9 +695,9 @@ impl AlignerBuilder {
         self
     }
 
-    /// Set whether to return the score table. By default, the score table is not returned.
-    /// Note that enabling traceback and tables is not supported. Enabling tables will disable
-    /// traceback.
+    /// Set whether to return the score table. By default, the score table is
+    /// not returned. Note that enabling traceback and tables is not supported.
+    /// Enabling tables will disable traceback.
     pub fn use_table(&mut self) -> &mut Self {
         self.use_table = String::from("_table");
 
@@ -850,8 +860,9 @@ impl Aligner {
         AlignerBuilder::default()
     }
 
-    /// Perform alignment between a query and reference sequence. If profile was set while building
-    /// the aligner, pass None as the query sequence. Otherwise, wrap the query sequence in a Some variant (i.e. Some(query)).
+    /// Perform alignment between a query and reference sequence.
+    /// If profile was set while building the aligner, pass None as the query
+    /// sequence. Otherwise, wrap the query sequence in a Some variant (i.e. Some(query)).
     pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> Result<AlignResult, AlignError> {
         let ref_len = reference.len() as i32;
         let reference = CString::new(reference)?;
