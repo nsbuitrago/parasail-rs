@@ -1,6 +1,6 @@
 [package]
 name = "parasail-rs"
-version = "0.7.1"
+version = "0.7.3"
 edition = "2021"
 authors = ["Nicolas S. Buitrago <nsb5@rice.edu>"]
 description = "Rust bindings and wrapper for parasail, a SIMD C library for pairwise sequence alignment."
@@ -11,6 +11,6 @@ documentation = "https://docs.rs/parasail-rs"
 
 [dependencies]
 libc = "0.2.153"
-libparasail-sys = "0.1.4"
+libparasail-sys = "0.1.6"
 log = "0.4.21"
 thiserror = "1.0.58"
