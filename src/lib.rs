@@ -993,6 +993,11 @@ impl Aligner {
     }
 }
 
+#[doc(hidden)]
+unsafe impl Send for Aligner {}
+#[doc(hidden)]
+unsafe impl Sync for Aligner {}
+
 /// CIGAR string for sequence alignment.
 struct CigarString {
     inner: *mut parasail_cigar_t,
