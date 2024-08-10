@@ -478,6 +478,9 @@ impl Profile {
 }
 
 /// Default profile is a null pointer
+// This is for cases where the profile is not used by the Aligner but we need
+// some default anyway. We could probably also not have this default and
+// just wrap the Profile in an Option
 impl Default for Profile {
     fn default() -> Self {
         Profile {
@@ -491,6 +494,12 @@ impl Default for Profile {
 impl Deref for Profile {
     type Target = *mut parasail_profile_t;
     fn deref(&self) -> &Self::Target {
+        // also check if inner is null
+        // and otherwise just return nothing
+        if !self.inner.is_null() {
+            return;
+        }
+
         &self.inner
     }
 }
