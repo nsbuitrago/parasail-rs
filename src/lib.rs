@@ -516,6 +516,7 @@ unsafe impl Send for Profile {}
 unsafe impl Sync for Profile {}
 
 /// Parasail alignment function type.
+#[derive(Clone)]
 enum AlignerFn {
     Function(
         Option<
@@ -855,6 +856,7 @@ impl AlignerBuilder {
     }
 }
 
+#[derive(Clone)]
 /// Aligner struct for sequence alignment
 pub struct Aligner {
     parasail_fn: AlignerFn,
