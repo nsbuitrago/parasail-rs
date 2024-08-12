@@ -626,3 +626,41 @@ pub fn test_ssw_alignment() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+#[test]
+pub fn test_ssw_init() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let matrix = Matrix::default();
+    let _ = Profile::new_ssw(query, &matrix, 2);
+
+    Ok(())
+}
+
+#[test]
+pub fn test_ssw_profile_alignment() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let matrix = Matrix::default();
+    let profile = Profile::new_ssw(query, &matrix, 2)?;
+
+    let aligner = Aligner::new().profile(profile).build();
+    let result = aligner.ssw(None, reference)?;
+
+    let checks = query.len() as u16;
+    let end = checks as i32 - 1;
+    let start: i32 = 0;
+
+    println!("score {:?}", result.score());
+    println!("query end {:?}", result.query_end());
+    println!("ref end {:?}", result.ref_end());
+    println!("query start {:?}", result.query_start());
+    println!("ref start {:?}", result.ref_start());
+
+    assert_eq!(result.score(), checks);
+    assert_eq!(result.query_end(), end);
+    assert_eq!(result.ref_end(), end);
+    assert_eq!(result.query_start(), start);
+    assert_eq!(result.ref_start(), start);
+
+    Ok(())
+}

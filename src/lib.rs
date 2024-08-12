@@ -79,7 +79,7 @@ use libparasail_sys::{
     parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table,
     parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table,
     parasail_result_is_trace, parasail_result_ssw_free, parasail_result_ssw_t, parasail_result_t,
-    parasail_ssw, parasail_traceback_generic,
+    parasail_ssw, parasail_ssw_init, parasail_ssw_profile, parasail_traceback_generic,
 };
 
 use log::warn;
@@ -456,25 +456,27 @@ impl Profile {
         }
     }
 
-    //pub fn ssw_init(query: &[u8], matrix: &Matrix, score_size: i8) -> Result<Self, ProfileError> {
-    //    let query_len = query.len() as i32;
-    //    if query_len == 0 {
-    //        panic!("Query sequence is empty.");
-    //    }
-    //    let query = CString::new(query)?;
-    //
-    //    unsafe {
-    //        let profile = parasail_ssw_init(query.as_ptr(), query_len, **matrix, score_size);
-    //        if profile.is_null() {
-    //            return Err(ProfileError::NullProfile);
-    //        }
-    //
-    //        Ok(Profile {
-    //            inner: profile,
-    //            use_stats: false,
-    //        })
-    //    }
-    //}
+    pub fn new_ssw(query: &[u8], matrix: &Matrix, score_size: i8) -> Result<Self, ProfileError> {
+        let query_len = query.len() as i32;
+        if query_len == 0 {
+            panic!("Query sequence has length 0.");
+        }
+        let query = CString::new(query)?;
+
+        let profile = unsafe {
+            let profile = parasail_ssw_init(query.as_ptr(), query_len, **matrix, score_size);
+
+            if profile.is_null() {
+                return Err(ProfileError::NullProfile);
+            }
+            profile
+        };
+
+        Ok(Profile {
+            inner: profile,
+            use_stats: false,
+        })
+    }
 }
 
 /// Default profile is a null pointer
@@ -494,16 +496,11 @@ impl Default for Profile {
 impl Deref for Profile {
     type Target = *mut parasail_profile_t;
     fn deref(&self) -> &Self::Target {
-        // also check if inner is null
-        // and otherwise just return nothing
-        if !self.inner.is_null() {
-            return;
-        }
-
         &self.inner
     }
 }
 
+// Check if this is how you drop this
 #[doc(hidden)]
 impl Drop for Profile {
     fn drop(&mut self) {
@@ -818,6 +815,12 @@ impl AlignerBuilder {
         self
     }
 
+    /// Sets the solution width (8, 16, 32, or 64 bit). By default will allocate
+    /// profiles for both 8 and 16 bit solutions.
+    pub fn _solution_width(&mut self, solution_width: i32) -> &mut Self {
+        todo!("Implement solution width")
+    }
+
     /// Build the aligner.
     pub fn build(&mut self) -> Aligner {
         let fn_name = self.get_parasail_fn_name();
@@ -882,13 +885,13 @@ impl Aligner {
                     query.is_some(),
                     "Query sequence is required for alignment without a profile."
                 );
-                let query = query.unwrap();
-                let query_len = query.len() as i32;
+                let query_raw = query.unwrap();
+                let query_len = query_raw.len() as i32;
+                let query = CString::new(query_raw)?;
 
-                unsafe {
-                    let query = CString::new(query)?;
+                let result = unsafe {
                     // already checked that aligner function f is some variant during build step
-                    let result = f.unwrap()(
+                    f.unwrap()(
                         query.as_ptr(),
                         query_len,
                         reference.as_ptr(),
@@ -896,29 +899,32 @@ impl Aligner {
                         self.gap_open,
                         self.gap_extend,
                         **self.matrix,
-                    );
-
-                    Ok(AlignResult {
-                        inner: result,
-                        matrix: **self.matrix,
-                    })
-                }
-            }
-            AlignerFn::PFunction(f) => unsafe {
-                // already checked that aligner function f is some variant during build step
-                let result = f.unwrap()(
-                    **self.profile,
-                    reference.as_ptr(),
-                    ref_len,
-                    self.gap_open,
-                    self.gap_extend,
-                );
+                    )
+                };
 
                 Ok(AlignResult {
                     inner: result,
                     matrix: **self.matrix,
                 })
-            },
+            }
+            AlignerFn::PFunction(f) => {
+                // already checked that aligner function f is some variant during build step
+
+                let result = unsafe {
+                    f.unwrap()(
+                        **self.profile,
+                        reference.as_ptr(),
+                        ref_len,
+                        self.gap_open,
+                        self.gap_extend,
+                    )
+                };
+
+                Ok(AlignResult {
+                    inner: result,
+                    matrix: **self.matrix,
+                })
+            }
         }
     }
 
@@ -938,8 +944,8 @@ impl Aligner {
             return Err(AlignError::NoBandwith);
         };
 
-        unsafe {
-            let result = parasail_nw_banded(
+        let result = unsafe {
+            parasail_nw_banded(
                 query.as_ptr(),
                 query_len,
                 reference.as_ptr(),
@@ -948,13 +954,13 @@ impl Aligner {
                 self.gap_extend,
                 bandwith,
                 **self.matrix,
-            );
+            )
+        };
 
-            Ok(AlignResult {
-                inner: result,
-                matrix: **self.matrix,
-            })
-        }
+        Ok(AlignResult {
+            inner: result,
+            matrix: **self.matrix,
+        })
     }
 
     /// Perform Striped Smith-Waterman local alignment using SSE2 instructions.
@@ -962,43 +968,39 @@ impl Aligner {
         let ref_len = reference.len() as i32;
         let reference = CString::new(reference)?;
 
-        if query.is_some() {
-            let query = query.unwrap();
-            let query_len = query.len() as i32;
+        let result = if query.is_some() {
+            let query_raw = query.unwrap();
+            let query_len = query_raw.len() as i32;
+            let query = CString::new(query_raw)?;
 
             unsafe {
-                let query = CString::new(query)?;
-                let result = parasail_ssw(
+                parasail_ssw(
                     query.as_ptr(),
                     query_len,
                     reference.as_ptr(),
                     ref_len,
                     self.gap_open,
                     self.gap_extend,
-                    **self.matrix,
-                );
-
-                Ok(SSWResult {
-                    inner: result, // matrix: **self.matrix,
-                })
+                    self.matrix.inner,
+                )
             }
         } else {
-            panic!("Query sequence is required for SSW alignment for now.");
-            //unsafe {
-            //    // need to check if the profile is of type parasail_profile_t
-            //    let result = parasail_ssw_profile(
-            //        **self.profile,
-            //        reference.as_ptr(),
-            //        ref_len,
-            //        self.gap_open,
-            //        self.gap_extend,
-            //    );
-            //
-            //    Ok(SSWResult {
-            //        inner: result, //matrix: **self.matrix,
-            //    })
-            //}
-        }
+            if self.profile.is_null() {
+                panic!("Profile is required if no query is provided.")
+            }
+
+            unsafe {
+                parasail_ssw_profile(
+                    **self.profile,
+                    reference.as_ptr(),
+                    ref_len,
+                    self.gap_open,
+                    self.gap_extend,
+                )
+            }
+        };
+
+        Ok(SSWResult { inner: result })
     }
 }
 
