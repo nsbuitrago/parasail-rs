@@ -58,29 +58,7 @@
 //!
 
 use libc::c_char;
-use libparasail_sys::{
-    parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_lookup_function,
-    parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_copy,
-    parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file,
-    parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_set_value,
-    parasail_matrix_t, parasail_nw_banded, parasail_profile_create_sat,
-    parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t,
-    parasail_result_free, parasail_result_get_cigar, parasail_result_get_end_query,
-    parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_length_col,
-    parasail_result_get_length_row, parasail_result_get_length_table, parasail_result_get_matches,
-    parasail_result_get_matches_col, parasail_result_get_matches_row,
-    parasail_result_get_matches_table, parasail_result_get_score, parasail_result_get_score_col,
-    parasail_result_get_score_row, parasail_result_get_score_table, parasail_result_get_similar,
-    parasail_result_get_similar_col, parasail_result_get_similar_row,
-    parasail_result_get_similar_table, parasail_result_get_trace_table,
-    parasail_result_get_traceback, parasail_result_is_banded, parasail_result_is_blocked,
-    parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol,
-    parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg,
-    parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table,
-    parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table,
-    parasail_result_is_trace, parasail_result_ssw_free, parasail_result_ssw_t, parasail_result_t,
-    parasail_ssw, parasail_ssw_init, parasail_ssw_profile, parasail_traceback_generic,
-};
+use libparasail_sys::*;
 
 use log::warn;
 use std::ffi::{CString, IntoStringError, NulError};
@@ -557,6 +535,7 @@ impl AlignerFn {
 /// Aligner builder
 pub struct AlignerBuilder {
     mode: String,
+    solution_width: String,
     matrix: Arc<Matrix>,
     gap_open: i32,
     gap_extend: i32,
@@ -577,6 +556,7 @@ impl Default for AlignerBuilder {
     fn default() -> Self {
         AlignerBuilder {
             mode: String::from("nw"),
+            solution_width: String::from("sat"),
             matrix: Matrix::default().into(),
             gap_open: 0,
             gap_extend: 0,
@@ -608,6 +588,13 @@ impl AlignerBuilder {
     /// Set alignment mode to local (Smith-Watermann).
     pub fn local(&mut self) -> &mut Self {
         self.mode = String::from("sw");
+        self
+    }
+
+    /// Set solution width (8, 16, 32, or 64 bit). By default will use sat
+    /// (i.e., 8-bit solution width first and falling back to 16-bit if necessary).
+    pub fn solution_width(&mut self, solution_width: i32) -> &mut Self {
+        self.solution_width = solution_width.to_string();
         self
     }
 
@@ -797,14 +784,15 @@ impl AlignerBuilder {
         }
 
         let parasail_fn_name = CString::new(format!(
-            "{}{}{}{}{}{}{}_sat",
+            "{}{}{}{}{}{}{}_{}",
             self.mode,
             sg_gaps_fn_part,
             self.use_trace,
             stats,
             self.use_table,
             self.vec_strategy,
-            profile
+            profile,
+            self.solution_width
         ))
         .unwrap_or_else(|e| panic!("CString::new failed: {}", e));
 
@@ -814,12 +802,6 @@ impl AlignerBuilder {
     pub fn bandwith(&mut self, bandwith: i32) -> &mut Self {
         self.bandwith = Some(bandwith);
         self
-    }
-
-    /// Sets the solution width (8, 16, 32, or 64 bit). By default will allocate
-    /// profiles for both 8 and 16 bit solutions.
-    pub fn _solution_width(&mut self, solution_width: i32) -> &mut Self {
-        todo!("Implement solution width")
     }
 
     /// Build the aligner.

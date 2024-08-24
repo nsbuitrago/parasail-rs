@@ -173,6 +173,86 @@ pub fn local_with_stats() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+pub fn global_8bit() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACTGACTGACTG";
+    let reference = b"ACTGTCTGACTG";
+    let aligner = Aligner::new().striped().solution_width(8).build();
+    let result = aligner.align(Some(query), reference)?;
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks - 1);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(result.is_global());
+    assert!(!result.is_local());
+    assert!(!result.is_semi_global());
+    assert!(result.is_striped());
+
+    Ok(())
+}
+
+#[test]
+pub fn global_16bit() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACTGACTGACTG";
+    let reference = b"ACTGTCTGACTG";
+    let aligner = Aligner::new().striped().solution_width(16).build();
+    let result = aligner.align(Some(query), reference)?;
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks - 1);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(result.is_global());
+    assert!(!result.is_local());
+    assert!(!result.is_semi_global());
+    assert!(result.is_striped());
+
+    Ok(())
+}
+
+#[test]
+pub fn global_32bit() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACTGACTGACTG";
+    let reference = b"ACTGTCTGACTG";
+    let aligner = Aligner::new().striped().solution_width(32).build();
+    let result = aligner.align(Some(query), reference)?;
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks - 1);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(result.is_global());
+    assert!(!result.is_local());
+    assert!(!result.is_semi_global());
+    assert!(result.is_striped());
+
+    Ok(())
+}
+
+#[test]
+pub fn global_64bit() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACTGACTGACTG";
+    let reference = b"ACTGTCTGACTG";
+    let aligner = Aligner::new().striped().solution_width(64).build();
+    let result = aligner.align(Some(query), reference)?;
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks - 1);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(result.is_global());
+    assert!(!result.is_local());
+    assert!(!result.is_semi_global());
+    assert!(result.is_striped());
+
+    Ok(())
+}
+
+#[test]
 pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     // one-off alignment wihthout stats
     let query = b"ACGT";
