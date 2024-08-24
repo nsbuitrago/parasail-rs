@@ -474,7 +474,7 @@ impl Profile {
 
         Ok(Profile {
             inner: profile,
-            use_stats: false,
+            use_stats: true,
         })
     }
 }
@@ -987,19 +987,20 @@ impl Aligner {
                 )
             }
         } else {
-            if self.profile.is_null() {
-                panic!("Profile is required if no query is provided.")
-            }
-
-            unsafe {
-                parasail_ssw_profile(
-                    **self.profile,
-                    reference.as_ptr(),
-                    ref_len,
-                    self.gap_open,
-                    self.gap_extend,
-                )
-            }
+            panic!("Query sequence is required for SSW alignment for now.")
+            // if self.profile.is_null() {
+            //     panic!("Profile is required if no query is provided.")
+            // }
+            //
+            // unsafe {
+            //     parasail_ssw_profile(
+            //         self.profile.inner,
+            //         reference.as_ptr(),
+            //         ref_len,
+            //         self.gap_open,
+            //         self.gap_extend,
+            //     )
+            // }
         };
 
         Ok(SSWResult { inner: result })
@@ -1436,13 +1437,13 @@ impl SSWResult {
         unsafe { (*self.inner).read_end1 }
     }
 
-    //pub fn cigar(&self) -> *mut u32 {
-    //    unsafe { (*self.inner).cigar }
-    //}
+    pub fn cigar(&self) -> *mut u32 {
+        unsafe { (*self.inner).cigar }
+    }
 
-    //pub fn cigar_len(&self) -> i32 {
-    //    unsafe { (*self.inner).cigarLen }
-    //}
+    pub fn cigar_len(&self) -> i32 {
+        unsafe { (*self.inner).cigarLen }
+    }
 }
 
 #[doc(hidden)]
