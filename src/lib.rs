@@ -58,29 +58,7 @@
 //!
 
 use libc::c_char;
-use libparasail_sys::{
-    parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_lookup_function,
-    parasail_lookup_pfunction, parasail_matrix_convert_square_to_pssm, parasail_matrix_copy,
-    parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file,
-    parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_set_value,
-    parasail_matrix_t, parasail_nw_banded, parasail_profile_create_sat,
-    parasail_profile_create_stats_sat, parasail_profile_free, parasail_profile_t,
-    parasail_result_free, parasail_result_get_cigar, parasail_result_get_end_query,
-    parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_length_col,
-    parasail_result_get_length_row, parasail_result_get_length_table, parasail_result_get_matches,
-    parasail_result_get_matches_col, parasail_result_get_matches_row,
-    parasail_result_get_matches_table, parasail_result_get_score, parasail_result_get_score_col,
-    parasail_result_get_score_row, parasail_result_get_score_table, parasail_result_get_similar,
-    parasail_result_get_similar_col, parasail_result_get_similar_row,
-    parasail_result_get_similar_table, parasail_result_get_trace_table,
-    parasail_result_get_traceback, parasail_result_is_banded, parasail_result_is_blocked,
-    parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol,
-    parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg,
-    parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table,
-    parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table,
-    parasail_result_is_trace, parasail_result_ssw_free, parasail_result_ssw_t, parasail_result_t,
-    parasail_ssw, parasail_traceback_generic,
-};
+use libparasail_sys::*;
 
 use log::warn;
 use std::ffi::{CString, IntoStringError, NulError};
@@ -456,28 +434,33 @@ impl Profile {
         }
     }
 
-    //pub fn ssw_init(query: &[u8], matrix: &Matrix, score_size: i8) -> Result<Self, ProfileError> {
-    //    let query_len = query.len() as i32;
-    //    if query_len == 0 {
-    //        panic!("Query sequence is empty.");
-    //    }
-    //    let query = CString::new(query)?;
-    //
-    //    unsafe {
-    //        let profile = parasail_ssw_init(query.as_ptr(), query_len, **matrix, score_size);
-    //        if profile.is_null() {
-    //            return Err(ProfileError::NullProfile);
-    //        }
-    //
-    //        Ok(Profile {
-    //            inner: profile,
-    //            use_stats: false,
-    //        })
-    //    }
-    //}
+    pub fn new_ssw(query: &[u8], matrix: &Matrix, score_size: i8) -> Result<Self, ProfileError> {
+        let query_len = query.len() as i32;
+        if query_len == 0 {
+            panic!("Query sequence has length 0.");
+        }
+        let query = CString::new(query)?;
+
+        let profile = unsafe {
+            let profile = parasail_ssw_init(query.as_ptr(), query_len, **matrix, score_size);
+
+            if profile.is_null() {
+                return Err(ProfileError::NullProfile);
+            }
+            profile
+        };
+
+        Ok(Profile {
+            inner: profile,
+            use_stats: true,
+        })
+    }
 }
 
 /// Default profile is a null pointer
+// This is for cases where the profile is not used by the Aligner but we need
+// some default anyway. We could probably also not have this default and
+// just wrap the Profile in an Option
 impl Default for Profile {
     fn default() -> Self {
         Profile {
@@ -495,6 +478,7 @@ impl Deref for Profile {
     }
 }
 
+// Check if this is how you drop this
 #[doc(hidden)]
 impl Drop for Profile {
     fn drop(&mut self) {
@@ -510,6 +494,7 @@ unsafe impl Send for Profile {}
 unsafe impl Sync for Profile {}
 
 /// Parasail alignment function type.
+#[derive(Clone)]
 enum AlignerFn {
     Function(
         Option<
@@ -550,6 +535,7 @@ impl AlignerFn {
 /// Aligner builder
 pub struct AlignerBuilder {
     mode: String,
+    solution_width: String,
     matrix: Arc<Matrix>,
     gap_open: i32,
     gap_extend: i32,
@@ -570,6 +556,7 @@ impl Default for AlignerBuilder {
     fn default() -> Self {
         AlignerBuilder {
             mode: String::from("nw"),
+            solution_width: String::from("sat"),
             matrix: Matrix::default().into(),
             gap_open: 0,
             gap_extend: 0,
@@ -601,6 +588,13 @@ impl AlignerBuilder {
     /// Set alignment mode to local (Smith-Watermann).
     pub fn local(&mut self) -> &mut Self {
         self.mode = String::from("sw");
+        self
+    }
+
+    /// Set solution width (8, 16, 32, or 64 bit). By default will use sat
+    /// (i.e., 8-bit solution width first and falling back to 16-bit if necessary).
+    pub fn solution_width(&mut self, solution_width: i32) -> &mut Self {
+        self.solution_width = solution_width.to_string();
         self
     }
 
@@ -790,14 +784,15 @@ impl AlignerBuilder {
         }
 
         let parasail_fn_name = CString::new(format!(
-            "{}{}{}{}{}{}{}_sat",
+            "{}{}{}{}{}{}{}_{}",
             self.mode,
             sg_gaps_fn_part,
             self.use_trace,
             stats,
             self.use_table,
             self.vec_strategy,
-            profile
+            profile,
+            self.solution_width
         ))
         .unwrap_or_else(|e| panic!("CString::new failed: {}", e));
 
@@ -843,6 +838,7 @@ impl AlignerBuilder {
     }
 }
 
+#[derive(Clone)]
 /// Aligner struct for sequence alignment
 pub struct Aligner {
     parasail_fn: AlignerFn,
@@ -873,13 +869,13 @@ impl Aligner {
                     query.is_some(),
                     "Query sequence is required for alignment without a profile."
                 );
-                let query = query.unwrap();
-                let query_len = query.len() as i32;
+                let query_raw = query.unwrap();
+                let query_len = query_raw.len() as i32;
+                let query = CString::new(query_raw)?;
 
-                unsafe {
-                    let query = CString::new(query)?;
+                let result = unsafe {
                     // already checked that aligner function f is some variant during build step
-                    let result = f.unwrap()(
+                    f.unwrap()(
                         query.as_ptr(),
                         query_len,
                         reference.as_ptr(),
@@ -887,29 +883,32 @@ impl Aligner {
                         self.gap_open,
                         self.gap_extend,
                         **self.matrix,
-                    );
-
-                    Ok(AlignResult {
-                        inner: result,
-                        matrix: **self.matrix,
-                    })
-                }
-            }
-            AlignerFn::PFunction(f) => unsafe {
-                // already checked that aligner function f is some variant during build step
-                let result = f.unwrap()(
-                    **self.profile,
-                    reference.as_ptr(),
-                    ref_len,
-                    self.gap_open,
-                    self.gap_extend,
-                );
+                    )
+                };
 
                 Ok(AlignResult {
                     inner: result,
                     matrix: **self.matrix,
                 })
-            },
+            }
+            AlignerFn::PFunction(f) => {
+                // already checked that aligner function f is some variant during build step
+
+                let result = unsafe {
+                    f.unwrap()(
+                        **self.profile,
+                        reference.as_ptr(),
+                        ref_len,
+                        self.gap_open,
+                        self.gap_extend,
+                    )
+                };
+
+                Ok(AlignResult {
+                    inner: result,
+                    matrix: **self.matrix,
+                })
+            }
         }
     }
 
@@ -929,8 +928,8 @@ impl Aligner {
             return Err(AlignError::NoBandwith);
         };
 
-        unsafe {
-            let result = parasail_nw_banded(
+        let result = unsafe {
+            parasail_nw_banded(
                 query.as_ptr(),
                 query_len,
                 reference.as_ptr(),
@@ -939,13 +938,13 @@ impl Aligner {
                 self.gap_extend,
                 bandwith,
                 **self.matrix,
-            );
+            )
+        };
 
-            Ok(AlignResult {
-                inner: result,
-                matrix: **self.matrix,
-            })
-        }
+        Ok(AlignResult {
+            inner: result,
+            matrix: **self.matrix,
+        })
     }
 
     /// Perform Striped Smith-Waterman local alignment using SSE2 instructions.
@@ -953,45 +952,47 @@ impl Aligner {
         let ref_len = reference.len() as i32;
         let reference = CString::new(reference)?;
 
-        if query.is_some() {
-            let query = query.unwrap();
-            let query_len = query.len() as i32;
+        let result = if query.is_some() {
+            let query_raw = query.unwrap();
+            let query_len = query_raw.len() as i32;
+            let query = CString::new(query_raw)?;
 
             unsafe {
-                let query = CString::new(query)?;
-                let result = parasail_ssw(
+                parasail_ssw(
                     query.as_ptr(),
                     query_len,
                     reference.as_ptr(),
                     ref_len,
                     self.gap_open,
                     self.gap_extend,
-                    **self.matrix,
-                );
-
-                Ok(SSWResult {
-                    inner: result, // matrix: **self.matrix,
-                })
+                    self.matrix.inner,
+                )
             }
         } else {
-            panic!("Query sequence is required for SSW alignment for now.");
-            //unsafe {
-            //    // need to check if the profile is of type parasail_profile_t
-            //    let result = parasail_ssw_profile(
-            //        **self.profile,
-            //        reference.as_ptr(),
-            //        ref_len,
-            //        self.gap_open,
-            //        self.gap_extend,
-            //    );
+            panic!("Query sequence is required for SSW alignment for now.")
+            // if self.profile.is_null() {
+            //     panic!("Profile is required if no query is provided.")
+            // }
             //
-            //    Ok(SSWResult {
-            //        inner: result, //matrix: **self.matrix,
-            //    })
-            //}
-        }
+            // unsafe {
+            //     parasail_ssw_profile(
+            //         self.profile.inner,
+            //         reference.as_ptr(),
+            //         ref_len,
+            //         self.gap_open,
+            //         self.gap_extend,
+            //     )
+            // }
+        };
+
+        Ok(SSWResult { inner: result })
     }
 }
+
+#[doc(hidden)]
+unsafe impl Send for Aligner {}
+#[doc(hidden)]
+unsafe impl Sync for Aligner {}
 
 /// CIGAR string for sequence alignment.
 struct CigarString {
@@ -1418,13 +1419,13 @@ impl SSWResult {
         unsafe { (*self.inner).read_end1 }
     }
 
-    //pub fn cigar(&self) -> *mut u32 {
-    //    unsafe { (*self.inner).cigar }
-    //}
+    pub fn cigar(&self) -> *mut u32 {
+        unsafe { (*self.inner).cigar }
+    }
 
-    //pub fn cigar_len(&self) -> i32 {
-    //    unsafe { (*self.inner).cigarLen }
-    //}
+    pub fn cigar_len(&self) -> i32 {
+        unsafe { (*self.inner).cigarLen }
+    }
 }
 
 #[doc(hidden)]

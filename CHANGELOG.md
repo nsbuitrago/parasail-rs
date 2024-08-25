@@ -2,7 +2,14 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
-## 0.7.3 - XXXX.XX.XX
+## 0.7.4 - 2024-08-24
+
+### Bug Fixes
+
+- Add `solution_width` method to `AlignerBuilder` (#8)
+- Add copy trait to aligner (#7)
+
+## 0.7.3 - 2024.04.22
 
 ### Features
 
@@ -13,7 +20,7 @@ profiles will be supported in a later release.
 alignment. With SSWResult, you can get the primary alignment score, along with
 start and end locations of the alignment on the query or reference.
 - Add banded global (Needleman-Wuncsh) alignment. The `banded_ssw` method
-on `Aligner` performs a banded global alignment. 
+on `Aligner` performs a banded global alignment.
 - Add `bandwith` method on `AlignerBuilder` to set the band with for banded nw
 alignment.
 

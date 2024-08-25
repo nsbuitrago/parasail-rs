@@ -173,6 +173,86 @@ pub fn local_with_stats() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+pub fn global_8bit() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACTGACTGACTG";
+    let reference = b"ACTGTCTGACTG";
+    let aligner = Aligner::new().striped().solution_width(8).build();
+    let result = aligner.align(Some(query), reference)?;
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks - 1);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(result.is_global());
+    assert!(!result.is_local());
+    assert!(!result.is_semi_global());
+    assert!(result.is_striped());
+
+    Ok(())
+}
+
+#[test]
+pub fn global_16bit() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACTGACTGACTG";
+    let reference = b"ACTGTCTGACTG";
+    let aligner = Aligner::new().striped().solution_width(16).build();
+    let result = aligner.align(Some(query), reference)?;
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks - 1);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(result.is_global());
+    assert!(!result.is_local());
+    assert!(!result.is_semi_global());
+    assert!(result.is_striped());
+
+    Ok(())
+}
+
+#[test]
+pub fn global_32bit() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACTGACTGACTG";
+    let reference = b"ACTGTCTGACTG";
+    let aligner = Aligner::new().striped().solution_width(32).build();
+    let result = aligner.align(Some(query), reference)?;
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks - 1);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(result.is_global());
+    assert!(!result.is_local());
+    assert!(!result.is_semi_global());
+    assert!(result.is_striped());
+
+    Ok(())
+}
+
+#[test]
+pub fn global_64bit() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACTGACTGACTG";
+    let reference = b"ACTGTCTGACTG";
+    let aligner = Aligner::new().striped().solution_width(64).build();
+    let result = aligner.align(Some(query), reference)?;
+
+    let checks = query.len() as i32;
+
+    assert_eq!(result.get_score(), checks - 1);
+    assert_eq!(result.get_end_query(), checks - 1);
+    assert_eq!(result.get_end_ref(), checks - 1);
+    assert!(result.is_global());
+    assert!(!result.is_local());
+    assert!(!result.is_semi_global());
+    assert!(result.is_striped());
+
+    Ok(())
+}
+
+#[test]
 pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     // one-off alignment wihthout stats
     let query = b"ACGT";
@@ -626,3 +706,43 @@ pub fn test_ssw_alignment() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
+#[test]
+pub fn test_ssw_init() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let matrix = Matrix::default();
+    let _ = Profile::new_ssw(query, &matrix, 2);
+
+    Ok(())
+}
+
+// #[test]
+// pub fn test_ssw_profile_alignment() -> Result<(), Box<dyn std::error::Error>> {
+//     let query = b"ACGTTGA";
+//     let reference = b"ACGTTGA";
+//     let matrix = Matrix::default();
+//     let profile = Profile::new_ssw(query, &matrix, 1)?;
+//
+//     let aligner = Aligner::new().profile(profile).build();
+//     let result = aligner.ssw(None, reference)?;
+//
+//     let checks = query.len() as u16;
+//     let end = checks as i32 - 1;
+//     let start: i32 = 0;
+//
+//     println!("score {:?}", result.score());
+//     println!("query end {:?}", result.query_end());
+//     println!("ref end {:?}", result.ref_end());
+//     println!("query start {:?}", result.query_start());
+//     println!("ref start {:?}", result.ref_start());
+//     println!("cigar {:?}", result.cigar());
+//     println!("cigar length {:?}", result.cigar_len());
+//
+//     assert_eq!(result.score(), checks);
+//     assert_eq!(result.query_end(), end);
+//     assert_eq!(result.ref_end(), end);
+//     assert_eq!(result.query_start(), start);
+//     assert_eq!(result.ref_start(), start);
+//
+//     Ok(())
+// }
