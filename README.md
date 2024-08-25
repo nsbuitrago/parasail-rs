@@ -25,11 +25,13 @@ For one-off alignments:
 ```rust
 use parasail_rs::{Aligner};
 
+// ...
+
 let query = b"ACGT";
 let reference = b"ACGT";
 let aligner = Aligner::new().build();
 
-aligner.align(Some(query), reference);
+aligner.align(Some(query), reference)?;
 ```
 
 Using query profile:
@@ -37,24 +39,28 @@ Using query profile:
 ```rust
 use parasail_rs::{Matrix, Aligner, Profile};
 
+// ...
+
 let query = b"ACGT";
 let ref_1 = b"ACGTAACGTACA";
 let ref_2 = b"TGGCAAGGTAGA";
 
 let use_stats = true;
-let query_profile = Profile::new(query, use_stats, Matrix::default());
+let query_profile = Profile::new(query, use_stats, &Matrix::default())?;
 let aligner = Aligner::new()
- .profile(query_profile, 5, 2, "striped")
- .semi_global()
- .build();
+    .profile(query_profile)
+    .build();
 
-let result_1 = aligner.align(None, ref_1);
-let result_2 = aligner.align(None, ref_2);
+let result_1 = aligner.align(None, ref_1)?;
+let result_2 = aligner.align(None, ref_2)?;
+
+println!("Score 1: {}", result_1.get_score());
+println!("Score 2: {}", result_2.get_score());
 ```
 
 ## Contributing
 
-Contributions are more than welcome. Please open an issue or send an email to nsb5 [at] rice.edu for any feedback or questions.
+Contributions are more than welcome. Please open an issue for any feedback or questions.
 
 ## Citations
 
@@ -65,6 +71,3 @@ If needed, please cite the following paper:
 ## License
 
 parasail-rs and libparasail-sys are licensed under the BSD-3-Clause license. The original parasail C library is licensed under a similar Battelle style BSD license.
-
-Nicolas S. Buitrago \<nsb5 [at] rice.edu\>
-
