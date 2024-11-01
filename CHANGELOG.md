@@ -2,7 +2,13 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
-## 0.7.4 - 2024-08-24
+## 0.7.5 - 2024.11.1
+
+### Update
+
+- bump deps
+
+## 0.7.4 - 2024.08.24
 
 ### Bug Fixes
 
