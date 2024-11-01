@@ -11,6 +11,6 @@ documentation = "https://docs.rs/parasail-rs"
 
 [dependencies]
 libc = "0.2.161"
-libparasail-sys = "0.1.6"
+libparasail-sys = "0.1.7"
 log = "0.4.22"
 thiserror = "1.0.66"
