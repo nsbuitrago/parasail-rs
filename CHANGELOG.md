@@ -2,6 +2,13 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.7.6 - 2024.11.18
+
+### Fix
+
+- bindgen bump issue with unstable library feature. (see
+[#2](https://github.com/nsbuitrago/libparasail-sys/pull/2)).
+
 ## 0.7.5 - 2024.11.1
 
 ### Update
