@@ -2,6 +2,13 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.7.7 - 2025.01.19
+
+### Update
+
+- bump dependencies. libparasail-sys v0.1.9 now skips building tests and the
+aligner application by default.
+
 ## 0.7.6 - 2024.11.18
 
 ### Fix
