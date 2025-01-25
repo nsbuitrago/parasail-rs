@@ -1,8 +1,15 @@
 # parasail-rs
 
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nsbuitrago/parasail-rs/test.yml) [![docs.rs](https://img.shields.io/docsrs/parasail-rs)](https://docs.rs/parasail-rs/latest/parasail-rs/index.html) ![Crates.io Version](https://img.shields.io/crates/v/parasail-rs)
+[![GitHub Actions Workflow
+Status](https://img.shields.io/github/actions/workflow/status/nsbuitrago/parasail-rs/test.yml)](https://github.com/nsbuitrago/parasail-rs/actions)
+[![docs.rs](https://img.shields.io/docsrs/parasail-rs)](https://docs.rs/parasail-rs/latest/parasail-rs)
+[![Crates.io
+Version](https://img.shields.io/crates/v/parasail-rs)](https://crates.io/crates/parasail-rs)
 
-This crate provides safe Rust bindings and a wrapper to [parasail](https://github.com/jeffdaily/parasail/tree/master), a SIMD pairwise sequence alignment C library. Note that this crate is still under development and is unstable.
+This crate provides Rust wrapper for
+[parasail](https://github.com/jeffdaily/parasail/tree/master), a SIMD pairwise
+sequence alignment C library. Note that this crate is still under development
+and is unstable.
 
 ## Usage
 
@@ -11,28 +18,31 @@ This crate provides safe Rust bindings and a wrapper to [parasail](https://githu
 Run the following Cargo command in your project directory:
 
 ```bash
-cargo add parasail-rs
+cargo add parasail_rs
 ```
 
-Note that parasail-rs depends on libparasail-sys which will either use an already installed system parasail library or build from source. For more information, please see [libparasail-sys](https://github.com/nsbuitrago/libparasail-sys).
+Note that parasail-rs depends on libparasail-sys which will either use an
+already installed system parasail library or build from source. For more
+information, please see
+[libparasail-sys](https://github.com/nsbuitrago/libparasail-sys).
 
 ### Examples
 
-#### Basic usage:
+#### Basic usage
 
 For one-off alignments:
 
 ```rust
-use parasail_rs::{Aligner};
-
-// ...
+use parasail_rs::Aligner;
 
 let query = b"ACGT";
-let reference = b"ACGT";
+let reference = b"TAGACGTTTA";
 let aligner = Aligner::new().build();
 
 aligner.align(Some(query), reference)?;
 ```
+
+#### Creating scoring matrices
 
 Using query profile:
 
@@ -70,4 +80,6 @@ If needed, please cite the following paper:
 
 ## License
 
-parasail-rs and libparasail-sys are licensed under the BSD-3-Clause license. The original parasail C library is licensed under a similar Battelle style BSD license.
+parasail-rs and libparasail-sys are licensed under the BSD-3-Clause license. The
+original parasail C library is licensed under a similar Battelle style BSD
+license.

@@ -1,6 +1,30 @@
 # Change Log
 
-All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
+All notable changes will be documented here in reverse chronological order the
+headers \<VERSION\> - <YY.MM.DD>.
+
+## 0.8.0 - 2025.xx.xx
+
+### Breaking Changes
+
+- matrix breaking changes
+- profile construction uses builder pattern for setting solution width, SIMD
+instruction set, and whether to use alignment with statistics.
+- aligner breaking changes
+
+### Enhancements
+
+- new examples in documentation
+- ability to explicitely set solution width and instruction set in the profile
+and aligner structs.
+- updated tests
+
+## 0.7.7 - 2025.01.19
+
+### Update
+
+- bump dependencies. libparasail-sys v0.1.9 now skips building tests and the
+aligner application by default.
 
 ## 0.7.6 - 2024.11.18
 
@@ -68,7 +92,7 @@ issue on aarch64 linux with gcc-multilib available.
 ### Breaking Changes
 
 - Matrix methods returning results:
-    - `create`, `from`, and `create_pssm`, `from_file` now return `Result<Self, MatrixError>`.
+  - `create`, `from`, and `create_pssm`, `from_file` now return `Result<Self, MatrixError>`.
 - Profile `create` method now returns `Result<Self, ProfileError>`.
 - `align` method returns `Result<AlignResult, AlignError>`.
 - `convert_square_to_pssm` renamed to `to_pssm` for succinctness.
