@@ -7,24 +7,28 @@ use libparasail_sys::{
     parasail_result_t,
 };
 use log::warn;
-use std::ffi::{c_char, CString};
+use std::{
+    ffi::{c_char, CString},
+    sync::Arc,
+};
 
-/// A gap enum to specify where to allow or not penalize gaps
+/// A gap enum to specify where to allow or not penalize gaps.
 pub enum Gap {
     Prefix,
     Suffix,
     All,
 }
 
+/// Aligner builder struct.
 #[non_exhaustive]
 #[derive(Debug, Clone)]
-pub struct AlignerBuilder<'a> {
+pub struct AlignerBuilder {
     mode: &'static str,
     solution_width: Option<u8>,
-    matrix: Matrix,
-    gap_open_penalty: i32,
-    gap_extend_penalty: i32,
-    profile: Option<&'a Profile>,
+    matrix: Arc<Matrix>,
+    gap_open_penalty: u32,
+    gap_extend_penalty: u32,
+    profile: Option<Arc<Profile>>,
     allow_query_gaps: &'static str,
     allow_ref_gaps: &'static str,
     vec_strategy: &'static str,
@@ -34,7 +38,7 @@ pub struct AlignerBuilder<'a> {
     instruction_set: &'static str,
 }
 
-impl<'a> AlignerBuilder<'a> {
+impl AlignerBuilder {
     /// Use global (Needleman-Wunsch) alignment mode.
     pub fn global(&mut self) -> &mut Self {
         self.mode = "nw";
@@ -55,20 +59,20 @@ impl<'a> AlignerBuilder<'a> {
 
     /// Set a custom scoring matrix for alignment.
     pub fn matrix(&mut self, matrix: Matrix) -> &mut Self {
-        self.matrix = matrix;
+        self.matrix = Arc::new(matrix);
         self
     }
 
     /// Set a custom gap opening penalty for alignment. Gap openings are not
     /// penalized by default.
-    pub fn gap_open_penalty(&mut self, penalty: i32) -> &mut Self {
+    pub fn gap_open_penalty(&mut self, penalty: u32) -> &mut Self {
         self.gap_open_penalty = penalty;
         self
     }
 
     /// Set a custom gap extension penalty for alignment. Gap extensions are not
     /// penalized by default.
-    pub fn gap_extend_penalty(&mut self, penalty: i32) -> &mut Self {
+    pub fn gap_extend_penalty(&mut self, penalty: u32) -> &mut Self {
         self.gap_extend_penalty = penalty;
         self
     }
@@ -195,18 +199,18 @@ impl<'a> AlignerBuilder<'a> {
     }
 
     /// Set query profile for alignment.
-    pub fn profile(&mut self, profile: &'a Profile) -> &mut Self {
-        self.profile = Some(profile);
-
+    pub fn profile(&mut self, profile: Profile) -> &mut Self {
         // update use stats based on the profile
         if profile.use_stats {
             self.use_stats = "_stats";
         }
 
+        self.profile = Some(Arc::new(profile));
         self
     }
 
-    pub fn build(&self) -> Result<()> {
+    /// Create a new aligner.
+    pub fn build(&self) -> Result<Aligner> {
         // get the function name for lookup
         let alignment_fn_name = self.get_parasail_fn_name()?;
 
@@ -228,7 +232,21 @@ impl<'a> AlignerBuilder<'a> {
             });
         }
 
-        Ok(())
+        let profile = if let Some(profile) = &self.profile {
+            Some(Arc::clone(profile))
+        } else {
+            None
+        };
+
+        let aligner = Aligner {
+            parasail_fn,
+            matrix: Arc::clone(&self.matrix),
+            profile,
+            gap_open_penalty: self.gap_open_penalty,
+            gap_extend_penalty: self.gap_extend_penalty,
+        };
+
+        Ok(aligner)
     }
 
     /// Get the parasail function name from the set fields.
@@ -272,14 +290,14 @@ impl<'a> AlignerBuilder<'a> {
     }
 }
 
-impl<'a> Default for AlignerBuilder<'a> {
+impl Default for AlignerBuilder {
     /// Default is an unvectorized global aligner with a DNA identity scoring
     /// matrix and no gap penalties.
     fn default() -> Self {
         AlignerBuilder {
             mode: "nw",
             solution_width: None,
-            matrix: Matrix::default(),
+            matrix: Arc::new(Matrix::default()),
             gap_open_penalty: 0,
             gap_extend_penalty: 0,
             profile: None,
@@ -295,17 +313,17 @@ impl<'a> Default for AlignerBuilder<'a> {
 }
 
 /// Pairwise sequence aligner.
-pub struct Aligner<'a> {
+pub struct Aligner {
     parasail_fn: AlignerFn,
-    pub matrix: &'a Matrix,
-    pub profile: &'a Profile,
+    pub matrix: Arc<Matrix>,
+    pub profile: Option<Arc<Profile>>,
     pub gap_open_penalty: u32,
     pub gap_extend_penalty: u32,
 }
 
-impl<'a> Aligner<'a> {
+impl Aligner {
     /// Create a new aligner builder. Default is a global aligner with
-    pub fn new() -> AlignerBuilder<'a> {
+    pub fn new() -> AlignerBuilder {
         AlignerBuilder::default()
     }
 
@@ -459,6 +477,13 @@ mod tests {
                 .get_parasail_fn_name()?,
             CString::new("parasail_nw_striped_neon_128_8")?
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn build_global_aligner() -> Result<()> {
+        assert!(Aligner::new().build().is_ok());
 
         Ok(())
     }
