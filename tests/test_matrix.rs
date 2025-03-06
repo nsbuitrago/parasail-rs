@@ -2,25 +2,35 @@ extern crate parasail_rs;
 use parasail_rs::Matrix;
 
 #[test]
-fn builtin_matrix_creation() -> Result<(), Box<dyn std::error::Error>> {
+fn create_builtin_matrix() {
     BUILTIN_MATRICES.iter().for_each(|builtin_name| {
         assert!(Matrix::from(builtin_name).is_ok());
     });
-
-    Ok(())
 }
 
 #[test]
-fn custom_matrix_creation() -> Result<(), Box<dyn std::error::Error>> {
-    let deafult_matrix = Matrix::default();
-
-    Ok(())
+fn create_custom_matrix() {
+    assert!(Matrix::create(b"ACGT", 3, -2).is_ok())
 }
 
 #[test]
-fn matrix_from_file() -> Result<(), Box<dyn std::error::Error>> {
+fn create_matrix_from_file() {
     assert!(Matrix::from_file("tests/data/square.txt").is_ok());
     assert!(Matrix::from_file("tests/data/pssm.txt").is_ok());
+}
+
+#[test]
+fn edit_matrix() -> Result<(), Box<dyn std::error::Error>> {
+    // edit a custom matrix, easy
+    let mut custom_dna = Matrix::default();
+    custom_dna.set_value(0, 0, 3)?;
+
+    // edit a builtin matrix. will copy the matrix first and create a custom variant
+    let mut custom_blosum = Matrix::from("blosum62")?;
+    custom_blosum.set_value(0, 0, 100)?;
+
+    assert_eq!(custom_dna.get_value(0, 0)?, 3);
+    assert_eq!(custom_blosum.get_value(0, 0)?, 100);
 
     Ok(())
 }

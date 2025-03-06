@@ -30,6 +30,10 @@ pub enum Error {
     FromFileFailed {
         filepath: String,
     },
+    InvalidIndex {
+        row: i32,
+        col: i32,
+    },
 }
 
 impl std::fmt::Display for Error {

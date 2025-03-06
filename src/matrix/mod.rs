@@ -2,11 +2,13 @@ mod error;
 
 pub use error::*; // flatten
 use libparasail_sys::{
-    parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file,
-    parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_t,
+    parasail_matrix_copy, parasail_matrix_create, parasail_matrix_free, parasail_matrix_from_file,
+    parasail_matrix_lookup, parasail_matrix_pssm_create, parasail_matrix_set_value,
+    parasail_matrix_t,
 };
 use std::{
     ffi::{c_int, CString},
+    fmt::Display,
     ops::Deref,
     path::Path,
 };
@@ -33,7 +35,7 @@ use std::{
 ///  # Ok::<(), parasail_rs::Error>(())
 /// ```
 #[non_exhaustive]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Matrix {
     Builtin(*const parasail_matrix_t),
     Custom(*mut parasail_matrix_t),
@@ -118,12 +120,69 @@ impl Matrix {
             Ok(Matrix::Custom(matrix))
         }
     }
+
+    /// Set the value of a matrix at a given row and column index.
+    pub fn set_value(&mut self, row: i32, col: i32, value: i32) -> Result<()> {
+        if let Matrix::Builtin(_) = self {
+            *self = self.clone()
+        }
+
+        let parasail_matrix = **self as *mut parasail_matrix_t;
+        let size = unsafe { (*parasail_matrix).size - 2 };
+        indices_are_valid(size, row, col)?;
+        unsafe { parasail_matrix_set_value(parasail_matrix, row, col, value) }
+
+        Ok(())
+    }
+
+    /// Get value of a matrix at a given row and column index.
+    pub fn get_value(&self, row: i32, col: i32) -> Result<i32> {
+        let parasail_matrix = **self as *mut parasail_matrix_t;
+        let size = unsafe { (*parasail_matrix).size - 2 };
+        indices_are_valid(size, row, col)?;
+
+        let value = unsafe {
+            let value_ptr = (*parasail_matrix)
+                .matrix
+                .offset((row * (size + 1) + col) as isize);
+            *value_ptr
+        };
+
+        Ok(value)
+    }
+}
+
+fn indices_are_valid(size: i32, row: i32, col: i32) -> Result<()> {
+    if row < 0 || row > size || col < 0 || col > size {
+        return Err(Error::InvalidIndex { row, col });
+    }
+
+    Ok(())
 }
 
 impl Default for Matrix {
     /// Creates an identity matrix for the DNA alphabet.
     fn default() -> Self {
         Matrix::create(b"ACGT", 1, -1).unwrap() // is there a better way to do this?
+    }
+}
+
+#[doc(hidden)]
+impl Display for Matrix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unsafe {
+            let parasail_matrix = **self;
+            let length = (*parasail_matrix).length as usize;
+            let size = (*parasail_matrix).size as usize;
+            let matrix = std::slice::from_raw_parts((*parasail_matrix).matrix, length * size);
+            for i in 0..length {
+                for j in 0..size {
+                    write!(f, "{} ", matrix[i * size + j])?;
+                }
+                writeln!(f)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -141,11 +200,34 @@ impl Deref for Matrix {
 }
 
 #[doc(hidden)]
-impl Drop for Matrix {
-    fn drop(&mut self) {
+impl Clone for Matrix {
+    fn clone(&self) -> Self {
+        let parasail_matrix_copy = unsafe { parasail_matrix_copy(**self) };
         match *self {
-            Matrix::Custom(matrix) => unsafe { parasail_matrix_free(matrix) },
-            _ => {} // built-in matrices do not need to be freed as they are not allocated on the heap
+            Matrix::Builtin(_) => Matrix::Builtin(parasail_matrix_copy as *const parasail_matrix_t),
+            Matrix::Custom(_) => Matrix::Custom(parasail_matrix_copy),
         }
+    }
+}
+
+#[doc(hidden)]
+impl Drop for Matrix {
+    // built-in matrices do not need to be freed as they are not allocated on the heap
+    fn drop(&mut self) {
+        if let Matrix::Custom(matrix) = *self {
+            unsafe { parasail_matrix_free(matrix) }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore]
+    fn display_matrix() {
+        let matrix = Matrix::default();
+        println!("{matrix}");
     }
 }
