@@ -4,13 +4,11 @@ use crate::{InstructionSet, Matrix, Profile};
 pub use error::*; // flatten
 use libparasail_sys::{
     parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_t, parasail_profile_t,
-    parasail_result_t,
+    parasail_result_free, parasail_result_get_score, parasail_result_t,
 };
 use log::warn;
-use std::{
-    ffi::{c_char, CString},
-    sync::Arc,
-};
+use std::ffi::{c_char, CString};
+use std::rc::Rc;
 
 /// A gap enum to specify where to allow or not penalize gaps.
 pub enum Gap {
@@ -25,10 +23,10 @@ pub enum Gap {
 pub struct AlignerBuilder {
     mode: &'static str,
     solution_width: Option<u8>,
-    matrix: Arc<Matrix>,
+    matrix: Rc<Matrix>,
     gap_open_penalty: u32,
     gap_extend_penalty: u32,
-    profile: Option<Arc<Profile>>,
+    profile: Rc<Option<Profile>>,
     allow_query_gaps: &'static str,
     allow_ref_gaps: &'static str,
     vec_strategy: &'static str,
@@ -59,7 +57,7 @@ impl AlignerBuilder {
 
     /// Set a custom scoring matrix for alignment.
     pub fn matrix(&mut self, matrix: Matrix) -> &mut Self {
-        self.matrix = Arc::new(matrix);
+        self.matrix = Rc::new(matrix);
         self
     }
 
@@ -205,7 +203,7 @@ impl AlignerBuilder {
             self.use_stats = "_stats";
         }
 
-        self.profile = Some(Arc::new(profile));
+        self.profile = Rc::new(Some(profile));
         self
     }
 
@@ -232,16 +230,10 @@ impl AlignerBuilder {
             });
         }
 
-        let profile = if let Some(profile) = &self.profile {
-            Some(Arc::clone(profile))
-        } else {
-            None
-        };
-
         let aligner = Aligner {
             parasail_fn,
-            matrix: Arc::clone(&self.matrix),
-            profile,
+            matrix: Rc::clone(&self.matrix),
+            profile: Rc::clone(&self.profile),
             gap_open_penalty: self.gap_open_penalty,
             gap_extend_penalty: self.gap_extend_penalty,
         };
@@ -297,10 +289,10 @@ impl Default for AlignerBuilder {
         AlignerBuilder {
             mode: "nw",
             solution_width: None,
-            matrix: Arc::new(Matrix::default()),
+            matrix: Matrix::default().into(),
             gap_open_penalty: 0,
             gap_extend_penalty: 0,
-            profile: None,
+            profile: None.into(),
             allow_query_gaps: "",
             allow_ref_gaps: "",
             vec_strategy: "",
@@ -313,10 +305,11 @@ impl Default for AlignerBuilder {
 }
 
 /// Pairwise sequence aligner.
+#[derive(Debug)]
 pub struct Aligner {
     parasail_fn: AlignerFn,
-    pub matrix: Arc<Matrix>,
-    pub profile: Option<Arc<Profile>>,
+    pub matrix: Rc<Matrix>,
+    pub profile: Rc<Option<Profile>>,
     pub gap_open_penalty: u32,
     pub gap_extend_penalty: u32,
 }
@@ -329,7 +322,35 @@ impl Aligner {
 
     /// Align query and reference sequences.
     pub fn align(&self, query: &[u8], reference: &[u8]) -> Result<()> {
-        todo!()
+        let query_len = query.len();
+        let reference_len = reference.len();
+        let query = CString::new(query)?;
+        let reference = CString::new(reference)?;
+
+        match self.parasail_fn {
+            AlignerFn::Function(function) => {
+                unsafe {
+                    // we can safely unwrap since we checked the function is Some
+                    // during the build call.
+                    function.unwrap()(
+                        query.as_ptr(),
+                        query_len as i32,
+                        reference.as_ptr(),
+                        reference_len as i32,
+                        self.gap_open_penalty as i32,
+                        self.gap_extend_penalty as i32,
+                        **self.matrix,
+                    )
+                };
+            }
+            AlignerFn::PFunction(_) => {
+                return Err(Error::IncompatibleAlignerFn {
+                    aligner_fn: self.parasail_fn,
+                });
+            }
+        }
+
+        Ok(())
     }
 
     /// Align sequence with query profile
@@ -339,7 +360,8 @@ impl Aligner {
 }
 
 // Type of aligner function (either with or without profile)
-enum AlignerFn {
+#[derive(Debug, Clone, Copy)]
+pub enum AlignerFn {
     Function(
         Option<
             unsafe extern "C" fn(
@@ -378,15 +400,28 @@ impl AlignerFn {
 
 /// Ok alignment result returned from `align`  or `align_with_profile`.
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone)]
 pub struct Alignment {
-    inner: f64,
+    inner: *const parasail_result_t,
 }
 
 impl Alignment {
     /// Get the alignment score
-    pub fn score(&self) -> f64 {
-        todo!();
+    pub fn score(&self) -> Result<i32> {
+        if self.inner.is_null() {
+            return Err(Error::NulResult {
+                msg: "Alignment result is a null pointer".to_string(),
+            });
+        }
+        let score = unsafe { parasail_result_get_score(self.inner) };
+        Ok(score as i32)
+    }
+}
+
+#[doc(hidden)]
+impl Drop for Alignment {
+    fn drop(&mut self) {
+        unsafe { parasail_result_free(self.inner as *mut parasail_result_t) }
     }
 }
 
@@ -482,9 +517,9 @@ mod tests {
     }
 
     #[test]
-    fn build_global_aligner() -> Result<()> {
-        assert!(Aligner::new().build().is_ok());
-
-        Ok(())
+    fn build_aligner() {
+        assert!(Aligner::new().build().is_ok()); // default is global aligner
+        assert!(Aligner::new().local().build().is_ok());
+        assert!(Aligner::new().semi_global().build().is_ok());
     }
 }

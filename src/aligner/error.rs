@@ -1,6 +1,8 @@
 use derive_more::From;
 use std::ffi::{CString, NulError};
 
+use super::AlignerFn;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, From)]
@@ -15,6 +17,12 @@ pub enum Error {
     NulError(NulError),
     FunctionLookupFailed {
         fn_name: CString,
+    },
+    NulResult {
+        msg: String,
+    },
+    IncompatibleAlignerFn {
+        aligner_fn: AlignerFn,
     },
 }
 

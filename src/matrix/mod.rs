@@ -7,6 +7,7 @@ use libparasail_sys::{
 };
 use std::{
     ffi::{c_int, CString},
+    ops::Deref,
     path::Path,
 };
 
@@ -123,6 +124,19 @@ impl Default for Matrix {
     /// Creates an identity matrix for the DNA alphabet.
     fn default() -> Self {
         Matrix::create(b"ACGT", 1, -1).unwrap() // is there a better way to do this?
+    }
+}
+
+#[doc(hidden)]
+impl Deref for Matrix {
+    type Target = *const parasail_matrix_t;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Matrix::Custom(m) => unsafe {
+                std::mem::transmute::<&*mut parasail_matrix_t, &*const parasail_matrix_t>(m)
+            },
+            Matrix::Builtin(m) => m,
+        }
     }
 }
 
