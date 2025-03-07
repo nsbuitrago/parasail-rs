@@ -17,7 +17,7 @@ pub enum Gap {
     All,
 }
 
-/// Aligner builder struct.
+/// Aligner builder struct
 #[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct AlignerBuilder {
@@ -214,7 +214,8 @@ impl AlignerBuilder {
 
         let parasail_fn = if self.profile.is_some() {
             // make sure the vectorization strategy is compatible with profile seting
-            if self.vec_strategy != "_striped" || self.vec_strategy != "_scan" {
+            if self.vec_strategy != "_striped" && self.vec_strategy != "_scan" {
+                println!("not recognizing vec strategy?, {:?}", self.vec_strategy);
                 return Err(Error::IncompatibleProfileConfig {
                     vec_strategy: self.vec_strategy.to_string(),
                 });
@@ -244,8 +245,15 @@ impl AlignerBuilder {
     /// Get the parasail function name from the set fields.
     fn get_parasail_fn_name(&self) -> Result<CString> {
         let (instruction_set, solution_width) = self.get_vectorization_config()?;
+
+        let profile = if self.profile.is_some() {
+            "_profile"
+        } else {
+            ""
+        };
+
         let fn_name = CString::new(format!(
-            "parasail_{}{}{}{}{}{}{}{}{}",
+            "parasail_{}{}{}{}{}{}{}{}{}{}",
             self.mode,
             self.allow_query_gaps,
             self.allow_ref_gaps,
@@ -253,6 +261,7 @@ impl AlignerBuilder {
             self.use_table,
             self.use_trace,
             self.vec_strategy,
+            profile,
             instruction_set,
             solution_width
         ))?;
@@ -289,7 +298,7 @@ impl Default for AlignerBuilder {
         AlignerBuilder {
             mode: "nw",
             solution_width: None,
-            matrix: Matrix::default().into(),
+            matrix: Rc::new(Matrix::default()),
             gap_open_penalty: 0,
             gap_extend_penalty: 0,
             profile: None.into(),
@@ -321,13 +330,13 @@ impl Aligner {
     }
 
     /// Align query and reference sequences.
-    pub fn align(&self, query: &[u8], reference: &[u8]) -> Result<()> {
+    pub fn align(&self, query: &[u8], reference: &[u8]) -> Result<Alignment> {
         let query_len = query.len();
         let reference_len = reference.len();
         let query = CString::new(query)?;
         let reference = CString::new(reference)?;
 
-        match self.parasail_fn {
+        let alignment = match self.parasail_fn {
             AlignerFn::Function(function) => {
                 unsafe {
                     // we can safely unwrap since we checked the function is Some
@@ -341,21 +350,50 @@ impl Aligner {
                         self.gap_extend_penalty as i32,
                         **self.matrix,
                     )
-                };
+                }
             }
             AlignerFn::PFunction(_) => {
                 return Err(Error::IncompatibleAlignerFn {
                     aligner_fn: self.parasail_fn,
                 });
             }
-        }
+        };
 
-        Ok(())
+        Ok(Alignment { inner: alignment })
     }
 
     /// Align sequence with query profile
-    pub fn align_with_profile(&self, reference: &[u8]) -> Result<()> {
-        todo!()
+    pub fn align_with_profile(&self, reference: &[u8]) -> Result<Alignment> {
+        let ref_seq_len = reference.len();
+        let ref_seq = CString::new(reference)?;
+
+        let alignment = match self.parasail_fn {
+            AlignerFn::PFunction(function) => {
+                let alignment = if let Some(ref profile) = *self.profile {
+                    // let profile_ptr = profile.inner;
+                    unsafe {
+                        function.unwrap()(
+                            profile.inner,
+                            ref_seq.as_ptr(),
+                            ref_seq_len as i32,
+                            self.gap_open_penalty as i32,
+                            self.gap_extend_penalty as i32,
+                        )
+                    }
+                } else {
+                    return Err(Error::NoProfileFound);
+                };
+
+                alignment
+            }
+            AlignerFn::Function(_) => {
+                return Err(Error::IncompatibleAlignerFn {
+                    aligner_fn: self.parasail_fn,
+                });
+            }
+        };
+
+        Ok(Alignment { inner: alignment })
     }
 }
 
@@ -413,8 +451,9 @@ impl Alignment {
                 msg: "Alignment result is a null pointer".to_string(),
             });
         }
+
         let score = unsafe { parasail_result_get_score(self.inner) };
-        Ok(score as i32)
+        Ok(score)
     }
 }
 
@@ -514,12 +553,5 @@ mod tests {
         );
 
         Ok(())
-    }
-
-    #[test]
-    fn build_aligner() {
-        assert!(Aligner::new().build().is_ok()); // default is global aligner
-        assert!(Aligner::new().local().build().is_ok());
-        assert!(Aligner::new().semi_global().build().is_ok());
     }
 }

@@ -4,7 +4,9 @@ mod profile_creator;
 use crate::{InstructionSet, Matrix};
 use libparasail_sys::{parasail_matrix_t, parasail_profile_free, parasail_profile_t};
 use profile_creator::profile_creator_lookup;
-use std::ffi::{c_int, CString};
+use std::ffi::{c_int, c_void, CString};
+use std::ops::Deref;
+use std::rc::Rc;
 
 pub use error::*; // flatten
 
@@ -79,7 +81,7 @@ impl<'a> ProfileBuilder<'a> {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct Profile {
-    inner: *mut parasail_profile_t,
+    pub(crate) inner: *mut parasail_profile_t,
     pub(crate) use_stats: bool,
 }
 
@@ -97,8 +99,30 @@ impl Profile {
 }
 
 #[doc(hidden)]
+impl Deref for Profile {
+    type Target = *mut parasail_profile_t;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+// #[doc(hidden)]
+// impl Clone for Profile {
+//     fn clone(&self) -> Self {
+//         Profile {
+//             inner: Rc::clone(&self.inner),
+//             use_stats: self.use_stats,
+//         }
+//     }
+// }
+
+#[doc(hidden)]
 impl Drop for Profile {
     fn drop(&mut self) {
-        unsafe { parasail_profile_free(self.inner) }
+        unsafe {
+            if let Some(free_fn) = (*self.inner).free {
+                free_fn(self.inner as *mut c_void);
+            }
+        }
     }
 }

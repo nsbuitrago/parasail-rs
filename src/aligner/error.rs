@@ -24,6 +24,7 @@ pub enum Error {
     IncompatibleAlignerFn {
         aligner_fn: AlignerFn,
     },
+    NoProfileFound,
 }
 
 impl std::fmt::Display for Error {
