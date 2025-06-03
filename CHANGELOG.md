@@ -2,6 +2,15 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.7.8 - 2025.06.03
+
+### Update
+
+- bump deps. libparasail-sys v0.1.10 removes support for cmake < 3.5
+    - libparasail-sys 0.1.9 -> 0.1.10
+    - libc 0.2.169 -> 0.2.172
+    - log 0.4.25 -> 0.4.27
+
 ## 0.7.7 - 2025.01.19
 
 ### Update
