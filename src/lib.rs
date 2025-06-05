@@ -133,7 +133,7 @@ pub enum AlignResultError {
 /// - a pre-defined matrix (such as blosum62)
 /// - a file containing a substitution matrix (see from_file for format details)
 /// - a PSSM (position-specific scoring matrix)
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Matrix {
     inner: *const parasail_matrix_t,
     builtin: bool,
@@ -368,6 +368,24 @@ impl Deref for Matrix {
     type Target = *const parasail_matrix_t;
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+#[doc(hidden)]
+impl Clone for Matrix {
+    fn clone(&self) -> Self {
+        let parasail_matrix_copy = unsafe { parasail_matrix_copy(**self) };
+        if self.builtin {
+            Self {
+                inner: parasail_matrix_copy as *const parasail_matrix_t,
+                builtin: true,
+            }
+        } else {
+            Self {
+                inner: parasail_matrix_copy,
+                builtin: false,
+            }
+        }
     }
 }
 
