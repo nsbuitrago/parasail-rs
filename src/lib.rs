@@ -378,7 +378,7 @@ impl Clone for Matrix {
         if self.builtin {
             Self {
                 inner: parasail_matrix_copy as *const parasail_matrix_t,
-                builtin: true,
+                builtin: false, // for consistency with C interface
             }
         } else {
             Self {
@@ -396,7 +396,9 @@ impl Drop for Matrix {
             return;
         }
 
-        unsafe { parasail_matrix_free(self.inner as *mut parasail_matrix_t) }
+        if !self.inner.is_null() {
+            unsafe { parasail_matrix_free(self.inner as *mut parasail_matrix_t) }
+        }
     }
 }
 
