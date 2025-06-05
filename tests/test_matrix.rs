@@ -10,7 +10,12 @@ fn create_builtin_matrix() {
 
 #[test]
 fn create_custom_matrix() {
-    assert!(Matrix::create(b"ACGT", 3, -2).is_ok())
+    // create a custom square matrix
+    assert!(Matrix::create(b"ACGT", 3, -2).is_ok());
+    // create a custom pssm
+    let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
+    let n_rows = 2;
+    assert!(Matrix::create_pssm(b"MGLA", values, n_rows).is_ok());
 }
 
 #[test]

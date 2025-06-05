@@ -4,11 +4,18 @@ use crate::{InstructionSet, Matrix, Profile};
 pub use error::*; // flatten
 use libparasail_sys::{
     parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_t, parasail_profile_t,
-    parasail_result_free, parasail_result_get_score, parasail_result_t,
+    parasail_result_free, parasail_result_get_end_query, parasail_result_get_end_ref,
+    parasail_result_get_length, parasail_result_get_matches, parasail_result_get_score,
+    parasail_result_get_similar, parasail_result_is_banded, parasail_result_is_blocked,
+    parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol,
+    parasail_result_is_saturated, parasail_result_is_scan, parasail_result_is_sg,
+    parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table,
+    parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table,
+    parasail_result_is_trace, parasail_result_t,
 };
 use log::warn;
 use std::ffi::{c_char, CString};
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// A gap enum to specify where to allow or not penalize gaps.
 pub enum Gap {
@@ -23,10 +30,10 @@ pub enum Gap {
 pub struct AlignerBuilder {
     mode: &'static str,
     solution_width: Option<u8>,
-    matrix: Rc<Matrix>,
+    matrix: Arc<Matrix>,
     gap_open_penalty: u32,
     gap_extend_penalty: u32,
-    profile: Rc<Option<Profile>>,
+    profile: Arc<Option<Profile>>,
     allow_query_gaps: &'static str,
     allow_ref_gaps: &'static str,
     vec_strategy: &'static str,
@@ -55,35 +62,35 @@ impl AlignerBuilder {
         self
     }
 
-    /// Set a custom scoring matrix for alignment.
+    /// Set the scoring matrix used for alignment.
     pub fn matrix(&mut self, matrix: Matrix) -> &mut Self {
-        self.matrix = Rc::new(matrix);
+        self.matrix = Arc::new(matrix);
         self
     }
 
-    /// Set a custom gap opening penalty for alignment. Gap openings are not
-    /// penalized by default.
+    /// Set a custom gap opening penalty for alignment. By default, gap openings
+    /// are not penalized.
     pub fn gap_open_penalty(&mut self, penalty: u32) -> &mut Self {
         self.gap_open_penalty = penalty;
         self
     }
 
-    /// Set a custom gap extension penalty for alignment. Gap extensions are not
-    /// penalized by default.
+    /// Set a custom gap extension penalty for alignment. By default, Gap extensions
+    /// are not penalized.
     pub fn gap_extend_penalty(&mut self, penalty: u32) -> &mut Self {
         self.gap_extend_penalty = penalty;
         self
     }
 
-    /// Set which gaps are allowed and not penalized on the query sequence for
-    /// semi-global alignment. Gaps are penalized at the beginning and end
-    /// (prefix and suffix) of the query sequence if penalties have been set by
-    /// default. For example, to not penalize gaps at the beginning of the query
-    /// sequence:
+    /// Set which gaps are allowed (not penalized) on the query sequence for
+    /// semi-global alignment. By default, gaps are penalized at the beginning
+    /// and end (prefix and suffix) of the query sequence if penalties have been
+    /// set.
+    ///
     /// Example:
     /// ```rust, no_run
     /// use parasail_rs::{Aligner, Gap};
-    /// // to allow gaps on the prefix (i.e., beginning of the query)
+    /// // allow gaps on the prefix (i.e., beginning of the query)
     /// let aligner = Aligner::new().allow_query_gaps(Gap::Prefix).build()?;
     /// # Ok::<(), parasail_rs::Error>(())
     ///
@@ -99,7 +106,7 @@ impl AlignerBuilder {
 
     /// Set which gaps are allowed and not penalized on the reference sequence
     /// for semi-global alignment. Behaves the same as `allow_query_gaps`, but
-    /// for the reference.
+    /// for the reference sequence.
     pub fn allow_ref_gaps(&mut self, gap: Gap) -> &mut Self {
         match gap {
             Gap::Prefix => self.allow_ref_gaps = "_db",
@@ -109,7 +116,9 @@ impl AlignerBuilder {
         self
     }
 
-    /// Return alignment statistics.
+    /// Return alignment statistics. Note that `return_stats` and `enable_traceback`
+    /// are mutually exclusive. Calling this method will disable traceback
+    /// if it has been enabled for this aligner previously.
     pub fn return_stats(&mut self) -> &mut Self {
         self.use_stats = "_stats";
 
@@ -125,7 +134,9 @@ impl AlignerBuilder {
         self
     }
 
-    /// Enable traceback capable alignment
+    /// Enable traceback capable alignment. Note that `enable_traceback` and
+    /// `return_stats` are mutually exclusive. Calling this method will disable
+    /// returning statistics if it has been enabled for the aligner previously.
     pub fn enable_traceback(&mut self) -> &mut Self {
         self.use_trace = "_trace";
 
@@ -140,7 +151,9 @@ impl AlignerBuilder {
         self
     }
 
-    /// Return the DP table
+    /// Return the DP table. Note that if `return_last_rowcol` has been set previously,
+    /// only the last row and column from the table will be return. Use `return_table`
+    /// (without calling `return_last_rowcol`) to return the entire table.
     pub fn return_table(&mut self) -> &mut Self {
         // prefer returning last row/col from DP table if set
         if self.use_table == "_rowcol" {
@@ -157,6 +170,14 @@ impl AlignerBuilder {
 
     /// Return the last row/column of the DP table.
     pub fn return_last_rowcol(&mut self) -> &mut Self {
+        // prefer returning last row/col from DP table if set
+        if self.use_table == "_table" {
+            warn!(
+                "Returning the entire table was previously enabled.
+                To return the entire table, use `return_table` exclusively.
+                Returning last row and col only."
+            );
+        }
         self.use_table = "_rowcol";
         self
     }
@@ -203,7 +224,7 @@ impl AlignerBuilder {
             self.use_stats = "_stats";
         }
 
-        self.profile = Rc::new(Some(profile));
+        self.profile = Arc::new(Some(profile));
         self
     }
 
@@ -233,8 +254,8 @@ impl AlignerBuilder {
 
         let aligner = Aligner {
             parasail_fn,
-            matrix: Rc::clone(&self.matrix),
-            profile: Rc::clone(&self.profile),
+            matrix: Arc::clone(&self.matrix),
+            profile: Arc::clone(&self.profile),
             gap_open_penalty: self.gap_open_penalty,
             gap_extend_penalty: self.gap_extend_penalty,
         };
@@ -298,7 +319,7 @@ impl Default for AlignerBuilder {
         AlignerBuilder {
             mode: "nw",
             solution_width: None,
-            matrix: Rc::new(Matrix::default()),
+            matrix: Arc::new(Matrix::default()),
             gap_open_penalty: 0,
             gap_extend_penalty: 0,
             profile: None.into(),
@@ -314,11 +335,11 @@ impl Default for AlignerBuilder {
 }
 
 /// Pairwise sequence aligner.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Aligner {
     parasail_fn: AlignerFn,
-    pub matrix: Rc<Matrix>,
-    pub profile: Rc<Option<Profile>>,
+    pub matrix: Arc<Matrix>,
+    pub profile: Arc<Option<Profile>>,
     pub gap_open_penalty: u32,
     pub gap_extend_penalty: u32,
 }
@@ -393,9 +414,20 @@ impl Aligner {
             }
         };
 
+        if alignment.is_null() {
+            return Err(Error::NulResult {
+                msg: "Alignment result is a null pointer".to_string(),
+            });
+        }
+
         Ok(Alignment { inner: alignment })
     }
 }
+
+#[doc(hidden)]
+unsafe impl Send for Aligner {}
+#[doc(hidden)]
+unsafe impl Sync for Aligner {}
 
 // Type of aligner function (either with or without profile)
 #[derive(Debug, Clone, Copy)]
@@ -436,24 +468,219 @@ impl AlignerFn {
     }
 }
 
-/// Ok alignment result returned from `align`  or `align_with_profile`.
+/// Alignment result returned from `align` or `align_with_profile` methods.
 #[non_exhaustive]
-#[derive(Clone)]
+#[derive(Debug)]
 pub struct Alignment {
     inner: *const parasail_result_t,
 }
 
 impl Alignment {
     /// Get the alignment score
-    pub fn score(&self) -> Result<i32> {
-        if self.inner.is_null() {
-            return Err(Error::NulResult {
-                msg: "Alignment result is a null pointer".to_string(),
-            });
-        }
+    pub fn get_score(&self) -> i32 {
+        unsafe { parasail_result_get_score(self.inner) }
+    }
 
-        let score = unsafe { parasail_result_get_score(self.inner) };
-        Ok(score)
+    /// Get the zero-indexed position of the end of the query match
+    pub fn get_end_query(&self) -> i32 {
+        unsafe { parasail_result_get_end_query(self.inner) }
+    }
+
+    /// Get the zero-indexed position of the end of the reference match
+    pub fn get_end_ref(&self) -> i32 {
+        unsafe { parasail_result_get_end_ref(self.inner) }
+    }
+
+    /// Get the number of matches in the alignment.
+    ///
+    /// This method can return an error if the Aligner is set to not return statistics.
+    /// The default behavior of the aligner is to not return statistics. To change
+    /// this, call the `return_stats` method on the Aligner.
+    pub fn get_matches(&self) -> Result<i32> {
+        if self.is_stats() {
+            unsafe { Ok(parasail_result_get_matches(self.inner)) }
+        } else {
+            Err(Error::NoStatsReturned)
+        }
+    }
+
+    /// Get the number of similar residues (in the case of using a PSSM).
+    ///
+    /// This method can return an error if the Aligner is set to not return statistics.
+    /// The default behavior of the aligner is to not return statistics. To change
+    /// this, call the `return_stats` method on the Aligner.
+    pub fn get_similar(&self) -> Result<i32> {
+        if self.is_stats() {
+            unsafe { Ok(parasail_result_get_similar(self.inner)) }
+        } else {
+            Err(Error::NoStatsReturned)
+        }
+    }
+
+    /// Get alignment length
+    ///
+    /// This method can return an error if the Aligner is set to not return statistics.
+    /// The default behavior of the aligner is to not return statistics. To change
+    /// this, call the `return_stats` method on the Aligner.
+    pub fn get_length(&self) -> Result<i32> {
+        if self.is_stats() {
+            unsafe { Ok(parasail_result_get_length(self.inner)) }
+        } else {
+            Err(Error::NoStatsReturned)
+        }
+    }
+
+    /// Get score table
+    pub fn get_score_table(&self) -> Result<i32> {
+        let score_table = unsafe { parasail_result_get_score_table(self.inner) };
+        return Ok(score_table);
+    }
+
+    pub fn get_matches_table(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_similar_table(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_length_table(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_score_row(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_matches_row(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_similar_row(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_length_row(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_score_col(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_matches_col(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_similar_col(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_length_col(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_trace_table(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_trace_ins_table(&self) -> Result<i32> {
+        todo!()
+    }
+
+    pub fn get_trace_del_table(&self) -> Result<i32> {
+        todo!()
+    }
+
+    /// This method can return an error if the Aligner is set to not return statistics.
+    /// The default behavior of the aligner is to not return statistics. To change
+    /// this, call the `return_stats` method on the Aligner.
+    pub fn print_traceback() -> Result<()> {
+        println!("get traceback string");
+        Ok(())
+    }
+
+    pub fn get_traceback_strings() {
+        todo!()
+    }
+
+    pub fn get_cigar() {
+        todo!()
+    }
+
+    /// Check if the alignment mode is global.
+    pub fn is_global(&self) -> bool {
+        unsafe { parasail_result_is_nw(self.inner) != 0 }
+    }
+
+    /// Check if the alignment mode is semi-global.
+    pub fn is_semi_global(&self) -> bool {
+        unsafe { parasail_result_is_sg(self.inner) != 0 }
+    }
+
+    /// Check if the alignment mode is local.
+    pub fn is_local(&self) -> bool {
+        unsafe { parasail_result_is_sw(self.inner) != 0 }
+    }
+
+    /// Check if the solution width is saturated (i.e., using 8-bit solution width first and
+    /// falling back to 16-bit if necessary).
+    pub fn is_saturated(&self) -> bool {
+        unsafe { parasail_result_is_saturated(self.inner) != 0 }
+    }
+
+    /// Check if banded alignment is used.
+    pub fn is_banded(&self) -> bool {
+        unsafe { parasail_result_is_banded(self.inner) != 0 }
+    }
+
+    /// Check if vector strategy is scan.
+    pub fn is_scan(&self) -> bool {
+        unsafe { parasail_result_is_scan(self.inner) != 0 }
+    }
+
+    /// Check if vector strategy is striped.
+    pub fn is_striped(&self) -> bool {
+        unsafe { parasail_result_is_striped(self.inner) != 0 }
+    }
+
+    /// Check if vector strategy is diagonal.
+    pub fn is_diag(&self) -> bool {
+        unsafe { parasail_result_is_diag(self.inner) != 0 }
+    }
+
+    pub fn is_blocked(&self) -> bool {
+        unsafe { parasail_result_is_blocked(self.inner) != 0 }
+    }
+
+    /// Check if statistics are returned from alignment.
+    pub fn is_stats(&self) -> bool {
+        unsafe { parasail_result_is_stats(self.inner) != 0 }
+    }
+
+    /// Check if result is a stats table
+    pub fn is_stats_table(&self) -> bool {
+        unsafe { parasail_result_is_stats_table(self.inner) != 0 }
+    }
+
+    /// Check if result is a table
+    pub fn is_table(&self) -> bool {
+        unsafe { parasail_result_is_table(self.inner) != 0 }
+    }
+
+    /// Check if result is a last row and column of table
+    pub fn is_rowcol(&self) -> bool {
+        unsafe { parasail_result_is_rowcol(self.inner) != 0 }
+    }
+
+    /// Check if result is a row and column of table with additional statistics.
+    pub fn is_stats_rowcol(&self) -> bool {
+        unsafe { parasail_result_is_stats_rowcol(self.inner) != 0 }
+    }
+
+    /// Check if result is trace enabled.
+    pub fn is_trace(&self) -> bool {
+        unsafe { parasail_result_is_trace(self.inner) != 0 }
     }
 }
 

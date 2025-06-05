@@ -2,11 +2,10 @@ mod error;
 mod profile_creator;
 
 use crate::{InstructionSet, Matrix};
-use libparasail_sys::{parasail_matrix_t, parasail_profile_free, parasail_profile_t};
+use libparasail_sys::{parasail_matrix_t, parasail_profile_t};
 use profile_creator::profile_creator_lookup;
 use std::ffi::{c_int, c_void, CString};
 use std::ops::Deref;
-use std::rc::Rc;
 
 pub use error::*; // flatten
 
@@ -48,7 +47,8 @@ impl<'a> ProfileBuilder<'a> {
     /// null pointer.
     pub fn build(&self) -> Result<Profile> {
         // The parasail_lookup_pcreator function does not work as expected for some
-        // reason. To account for this, I simply have my own dispatcher.
+        // reason. We just use our own dispatcher here.
+        //
         // let create_profile_fn = unsafe { parasail_lookup_pcreator(fn_name.as_ptr()) };
         // if create_profile_fn.is_none() {
         //     return Err(Error::FunctionLookupFailed {func_name: fn_name.to_string_lossy().into() });
@@ -106,16 +106,6 @@ impl Deref for Profile {
     }
 }
 
-// #[doc(hidden)]
-// impl Clone for Profile {
-//     fn clone(&self) -> Self {
-//         Profile {
-//             inner: Rc::clone(&self.inner),
-//             use_stats: self.use_stats,
-//         }
-//     }
-// }
-
 #[doc(hidden)]
 impl Drop for Profile {
     fn drop(&mut self) {
@@ -124,5 +114,17 @@ impl Drop for Profile {
                 free_fn(self.inner as *mut c_void);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(target_arch = "aarch64")]
+    #[test]
+    fn function_lookup() {
+        let profile_fn = profile_creator_lookup(false, Some(InstructionSet::AltiVec), Some(16));
+        assert!(profile_fn.is_ok());
     }
 }

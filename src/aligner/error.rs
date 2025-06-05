@@ -25,6 +25,7 @@ pub enum Error {
         aligner_fn: AlignerFn,
     },
     NoProfileFound,
+    NoStatsReturned,
 }
 
 impl std::fmt::Display for Error {

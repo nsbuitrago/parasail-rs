@@ -1,8 +1,4 @@
 extern crate parasail_rs;
-
-use std::ffi::CString;
-
-use libparasail_sys::parasail_lookup_pcreator;
 use parasail_rs::{Error, InstructionSet, Matrix, Profile};
 
 const QUERY: &[u8] = b"ATGTAGTAA";
@@ -18,16 +14,6 @@ fn default_profile_creation() -> Result<(), Error> {
 fn profile_creation_with_stats() -> Result<(), Error> {
     let matrix = Matrix::default();
     Profile::new(QUERY, &matrix).use_stats().build()?;
-    Ok(())
-}
-
-#[test]
-fn profile_lookup() -> Result<(), Error> {
-    // parasail_profile_create_sat()
-    let fn_name = CString::new("parasail_profile_create_sat").unwrap();
-    // let fn_name_ptr = fn_name.as_ptr();
-    let profile_fn = unsafe { parasail_lookup_pcreator(fn_name.as_ptr()) };
-    println!("{:?}", profile_fn);
     Ok(())
 }
 
