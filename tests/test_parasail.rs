@@ -1,5 +1,5 @@
 use parasail_rs::{Aligner, Matrix, Profile};
-use std::thread;
+use std::thread::{self, JoinHandle};
 
 #[test]
 pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
@@ -655,9 +655,12 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
         .striped()
         .build();
 
-    thread::spawn(move || {
-        for reference in refs {
-            match &aligner.align(None, reference) {
+    let handles: Vec<_> = refs
+        .iter()
+        .map(|reference| {
+            let aligner = aligner.clone();
+            let reference = reference.to_vec();
+            thread::spawn(move || match &aligner.align(None, &reference) {
                 Ok(result) => {
                     let score = result.get_score();
                     assert_eq!(score, query.len() as i32);
@@ -665,12 +668,13 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
                 Err(e) => {
                     println!("Alignment Error: {}", e);
                 }
-            }
-        }
-    })
-    .join()
-    .unwrap();
+            })
+        })
+        .collect();
 
+    for handle in handles {
+        handle.join().unwrap();
+    }
     Ok(())
 }
 

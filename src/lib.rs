@@ -408,6 +408,8 @@ unsafe impl Sync for Matrix {}
 /// Query profile for sequence alignment
 pub struct Profile {
     inner: *mut parasail_profile_t,
+    query: Vec<u8>,
+    matrix: Matrix,
     use_stats: bool,
 }
 
@@ -416,12 +418,16 @@ impl Profile {
     /// The with_stats should be set to true if you will use an alignment function that returns
     /// statistics. If true, the Profile will use the appropriate parasail functions to allocate
     /// additional data structures required for statistics.
-    pub fn new(query: &[u8], with_stats: bool, matrix: &Matrix) -> Result<Self, ProfileError> {
-        let query_len = query.len() as i32;
+    pub fn new(
+        query_bytes: &[u8],
+        with_stats: bool,
+        matrix: &Matrix,
+    ) -> Result<Self, ProfileError> {
+        let query_len = query_bytes.len() as i32;
         if query_len == 0 {
             panic!("Query sequence is empty.");
         }
-        let query = CString::new(query)?;
+        let query = CString::new(query_bytes)?;
 
         unsafe {
             match with_stats {
@@ -434,6 +440,8 @@ impl Profile {
 
                     Ok(Profile {
                         inner: profile,
+                        query: query_bytes.to_vec(),
+                        matrix: matrix.clone(),
                         use_stats: true,
                     })
                 }
@@ -445,6 +453,8 @@ impl Profile {
 
                     Ok(Profile {
                         inner: profile,
+                        query: query_bytes.to_vec(),
+                        matrix: matrix.clone(),
                         use_stats: false,
                     })
                 }
@@ -452,12 +462,16 @@ impl Profile {
         }
     }
 
-    pub fn new_ssw(query: &[u8], matrix: &Matrix, score_size: i8) -> Result<Self, ProfileError> {
-        let query_len = query.len() as i32;
+    pub fn new_ssw(
+        query_bytes: &[u8],
+        matrix: &Matrix,
+        score_size: i8,
+    ) -> Result<Self, ProfileError> {
+        let query_len = query_bytes.len() as i32;
         if query_len == 0 {
             panic!("Query sequence has length 0.");
         }
-        let query = CString::new(query)?;
+        let query = CString::new(query_bytes)?;
 
         let profile = unsafe {
             let profile = parasail_ssw_init(query.as_ptr(), query_len, **matrix, score_size);
@@ -470,6 +484,8 @@ impl Profile {
 
         Ok(Profile {
             inner: profile,
+            query: query_bytes.to_vec(),
+            matrix: matrix.clone(),
             use_stats: true,
         })
     }
@@ -483,6 +499,8 @@ impl Default for Profile {
     fn default() -> Self {
         Profile {
             inner: std::ptr::null_mut(),
+            query: Vec::new(),
+            matrix: Matrix::default(),
             use_stats: false,
         }
     }
@@ -493,6 +511,14 @@ impl Deref for Profile {
     type Target = *mut parasail_profile_t;
     fn deref(&self) -> &Self::Target {
         &self.inner
+    }
+}
+
+#[doc(hidden)]
+impl Clone for Profile {
+    fn clone(&self) -> Self {
+        Self::new(&self.query, self.use_stats, &self.matrix)
+            .unwrap_or_else(|e| panic!("failed to clone profile: {e}"))
     }
 }
 
