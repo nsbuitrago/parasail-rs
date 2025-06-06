@@ -60,7 +60,8 @@ println!("Score 2: {}", result_2.get_score());
 
 ## Contributing
 
-Contributions are more than welcome. Please open an issue for any feedback or questions.
+Contributions are more than welcome. Please open an issue for any feedback or questions. See the [contributing guide](CONTRIBUTING.md)
+for more details.
 
 ## Citations
 
