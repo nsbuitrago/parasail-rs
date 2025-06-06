@@ -19,7 +19,6 @@
 //!     let query = b"ACGT";
 //!     let reference = b"ACGT";
 //!     let aligner = Aligner::new().build();
-
 //!     let result = aligner.align(Some(query), reference)?;
 //!     println!("Alignment Score: {}", result.get_score());
 //!
@@ -150,7 +149,7 @@ impl Matrix {
         mismatch_score: i32,
     ) -> Result<Self, MatrixError> {
         assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
-        assert!(alphabet.len() > 0, "Alphabet should not be empty.");
+        assert!(!alphabet.is_empty(), "Alphabet should not be empty.");
         unsafe {
             let alphabet = &CString::new(alphabet)?;
             Ok(Self {
@@ -632,7 +631,7 @@ impl AlignerBuilder {
         self
     }
 
-    /// Set alignment mode to local (Smith-Watermann).
+    /// Set alignment mode to local (Smith-Waterman).
     pub fn local(&mut self) -> &mut Self {
         self.mode = String::from("sw");
         self
@@ -784,15 +783,15 @@ impl AlignerBuilder {
     fn get_allowed_gaps(&self, prefix: &str, allowed_gaps_vec: &Vec<String>) -> Vec<String> {
         let mut allowed_gaps = Vec::new();
 
-        if allowed_gaps_vec.len() > 0 {
+        if !allowed_gaps_vec.is_empty() {
             if allowed_gaps_vec.contains(&String::from("prefix"))
                 && allowed_gaps_vec.contains(&String::from("suffix"))
             {
-                allowed_gaps.push(format!("_{}x", prefix));
+                allowed_gaps.push(format!("_{prefix}x"));
             } else if allowed_gaps_vec.contains(&String::from("prefix")) {
-                allowed_gaps.push(format!("_{}b", prefix));
+                allowed_gaps.push(format!("_{prefix}b"));
             } else if allowed_gaps_vec.contains(&String::from("suffix")) {
-                allowed_gaps.push(format!("_{}e", prefix));
+                allowed_gaps.push(format!("_{prefix}e"));
             }
         }
 
@@ -841,7 +840,7 @@ impl AlignerBuilder {
             profile,
             self.solution_width
         ))
-        .unwrap_or_else(|e| panic!("CString::new failed: {}", e));
+        .unwrap_or_else(|e| panic!("CString::new failed: {e}"));
 
         parasail_fn_name
     }
@@ -999,14 +998,13 @@ impl Aligner {
         let ref_len = reference.len() as i32;
         let reference = CString::new(reference)?;
 
-        let result = if query.is_some() {
-            let query_raw = query.unwrap();
-            let query_len = query_raw.len() as i32;
-            let query = CString::new(query_raw)?;
+        let result = if let Some(query_seq) = query {
+            let query_len = query_seq.len() as i32;
+            let cquery = CString::new(query_seq)?;
 
             unsafe {
                 parasail_ssw(
-                    query.as_ptr(),
+                    cquery.as_ptr(),
                     query_len,
                     reference.as_ptr(),
                     ref_len,
