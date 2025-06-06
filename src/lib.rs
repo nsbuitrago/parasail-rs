@@ -103,10 +103,11 @@ pub enum ProfileError {
 pub enum AlignError {
     #[error("Alignment initialization error: {0}")]
     AlignInitErr(#[from] NulError),
-    #[error("No bandwith set for banded alignment.")]
-    NoBandwith,
+    #[error("No bandwidth set for banded alignment.")]
+    NoBandwidth,
 }
 
+//noinspection ALL
 #[derive(Error, Debug)]
 pub enum AlignResultError {
     #[error("Error getting result from {0}. Stats must be initialized. Consider using `use_stats` method on AlignerBuilder.")]
@@ -123,7 +124,7 @@ pub enum AlignResultError {
     CigarToStringErr(#[from] IntoStringError),
     #[error("Error creating new CString: {0}")]
     NewCStringErr(#[from] NulError),
-    #[error("No bandwith set for banded alignment.")]
+    #[error("No bandwidth set for banded alignment.")]
     NoBandwith,
 }
 
@@ -183,7 +184,7 @@ impl Matrix {
 
     /// Create a new scoring matrix from a file.
     /// Files should contain either square or position-specific scoring matrices.
-    /// Examples are direcly from the [Parasail C lib docs](https://github.com/jeffdaily/parasail?tab=readme-ov-file#substitution-matrices).
+    /// Examples are directly from the [Parasail C lib docs](https://github.com/jeffdaily/parasail?tab=readme-ov-file#substitution-matrices).
     /// Square:
     /// ```plaintext
     ///#
@@ -304,7 +305,7 @@ impl Matrix {
             );
 
             if converted_matrix.is_null() {
-                panic!("Erro converting matrix to PSSM. Invalid query sequence.")
+                panic!("Error converting matrix to PSSM. Invalid query sequence.")
             }
 
             Ok(Matrix {
@@ -494,7 +495,7 @@ impl Profile {
 }
 
 /// Default profile is a null pointer
-// This is for cases where the profile is not used by the Aligner but we need
+// This is for cases where the profile is not used by the Aligner, but we need
 // some default anyway. We could probably also not have this default and
 // just wrap the Profile in an Option
 impl Default for Profile {
@@ -592,7 +593,7 @@ pub struct AlignerBuilder {
     use_stats: String,
     use_table: String,
     use_trace: String,
-    bandwith: Option<i32>,
+    bandwidth: Option<i32>,
 }
 
 /// Default aligner uses global alignment with an identity matrix for DNA
@@ -613,7 +614,7 @@ impl Default for AlignerBuilder {
             use_stats: String::default(),
             use_table: String::default(),
             use_trace: String::default(),
-            bandwith: None,
+            bandwidth: None,
         }
     }
 }
@@ -637,7 +638,7 @@ impl AlignerBuilder {
         self
     }
 
-    /// Set solution width (8, 16, 32, or 64 bit). By default will use sat
+    /// Set solution width (8, 16, 32, or 64 bit). By default, will use sat
     /// (i.e., 8-bit solution width first and falling back to 16-bit if necessary).
     pub fn solution_width(&mut self, solution_width: i32) -> &mut Self {
         self.solution_width = solution_width.to_string();
@@ -845,8 +846,8 @@ impl AlignerBuilder {
         parasail_fn_name
     }
 
-    pub fn bandwith(&mut self, bandwith: i32) -> &mut Self {
-        self.bandwith = Some(bandwith);
+    pub fn bandwidth(&mut self, bandwidth: i32) -> &mut Self {
+        self.bandwidth = Some(bandwidth);
         self
     }
 
@@ -879,7 +880,7 @@ impl AlignerBuilder {
             gap_extend: self.gap_extend,
             profile: Arc::clone(&self.profile),
             vec_strategy: self.vec_strategy.clone(),
-            bandwith: self.bandwith,
+            bandwidth: self.bandwidth,
         }
     }
 }
@@ -893,7 +894,7 @@ pub struct Aligner {
     pub gap_extend: i32,
     profile: Arc<Profile>,
     pub vec_strategy: String,
-    bandwith: Option<i32>,
+    bandwidth: Option<i32>,
 }
 
 impl Aligner {
@@ -958,7 +959,7 @@ impl Aligner {
         }
     }
 
-    /// Peform banded global alignment between a query and reference sequence.
+    /// Perform banded global alignment between a query and reference sequence.
     /// Note that this function is not vectorized. However, it may be useful
     /// for aligning large sequences.
     pub fn banded_nw(&self, query: &[u8], reference: &[u8]) -> Result<AlignResult, AlignError> {
@@ -968,10 +969,10 @@ impl Aligner {
         let query_len = query.len() as i32;
         let query = CString::new(query)?;
 
-        let bandwith = if let Some(bandwith) = self.bandwith {
-            bandwith
+        let bandwidth = if let Some(bandwidth) = self.bandwidth {
+            bandwidth
         } else {
-            return Err(AlignError::NoBandwith);
+            return Err(AlignError::NoBandwidth);
         };
 
         let result = unsafe {
@@ -982,7 +983,7 @@ impl Aligner {
                 ref_len,
                 self.gap_open,
                 self.gap_extend,
-                bandwith,
+                bandwidth,
                 **self.matrix,
             )
         };
@@ -1283,10 +1284,10 @@ impl AlignResult {
         if self.is_trace() {
             let query_len = query.len() as i32;
             let ref_len = reference.len() as i32;
-            let query = CString::new(query).unwrap();
-            let reference = CString::new(reference).unwrap();
-            let match_char = CString::new("|").unwrap();
-            let mismatch_char = CString::new(" ").unwrap();
+            let query = CString::new(query)?;
+            let reference = CString::new(reference)?;
+            let match_char = CString::new("|")?;
+            let mismatch_char = CString::new(" ")?;
             unsafe {
                 let alignment = parasail_result_get_traceback(
                     self.inner,
@@ -1300,11 +1301,11 @@ impl AlignResult {
                     *mismatch_char.as_ptr(),
                 );
 
-                let query_traceback = CString::from_raw((*alignment).query).into_string().unwrap();
+                let query_traceback = CString::from_raw((*alignment).query).into_string()?;
                 let comparison_traceback =
-                    CString::from_raw((*alignment).comp).into_string().unwrap();
+                    CString::from_raw((*alignment).comp).into_string()?;
                 let reference_traceback =
-                    CString::from_raw((*alignment).ref_).into_string().unwrap();
+                    CString::from_raw((*alignment).ref_).into_string()?;
 
                 Ok(Traceback {
                     query: query_traceback.clone(),
@@ -1313,9 +1314,9 @@ impl AlignResult {
                 })
             }
         } else {
-            return Err(AlignResultError::NoTrace(String::from(
+            Err(AlignResultError::NoTrace(String::from(
                 "get_traceback_strings()",
-            )));
+            )))
         }
     }
 

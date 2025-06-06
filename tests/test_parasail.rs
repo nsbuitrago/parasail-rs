@@ -1,5 +1,5 @@
 use parasail_rs::{Aligner, Matrix, Profile};
-use std::thread::{self, JoinHandle};
+use std::thread::{self};
 
 #[test]
 pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
@@ -254,7 +254,7 @@ pub fn global_64bit() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().striped().build();
@@ -314,7 +314,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn matches_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
@@ -331,7 +331,7 @@ pub fn matches_table() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
@@ -347,7 +347,7 @@ pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn length_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
@@ -363,7 +363,7 @@ pub fn length_table() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn score_row() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new()
@@ -383,7 +383,7 @@ pub fn score_row() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn matches_row() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new()
@@ -403,7 +403,7 @@ pub fn matches_row() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn similar_row() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new()
@@ -423,7 +423,7 @@ pub fn similar_row() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn length_row() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new()
@@ -443,7 +443,7 @@ pub fn length_row() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn score_col() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new()
@@ -463,7 +463,7 @@ pub fn score_col() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn match_col() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new()
@@ -483,7 +483,7 @@ pub fn match_col() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn similar_col() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new()
@@ -503,7 +503,7 @@ pub fn similar_col() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn length_col() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new()
@@ -652,7 +652,7 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
     let aligner = Aligner::new()
         .profile(profile)
         .use_stats()
-        .striped()
+        .scan()
         .build();
 
     let handles: Vec<_> = refs
@@ -682,7 +682,7 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
 pub fn test_banded_nw() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
-    let aligner = Aligner::new().bandwith(2).build();
+    let aligner = Aligner::new().bandwidth(2).build();
     let result = aligner.banded_nw(query, reference)?;
     let expected_score = query.len() as i32;
 
