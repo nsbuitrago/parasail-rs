@@ -391,6 +391,7 @@ unsafe impl Sync for Matrix {}
 pub struct Profile {
     inner: *mut parasail_profile_t,
     use_stats: bool,
+    query_len: i32,
 }
 
 impl Profile {
@@ -417,6 +418,7 @@ impl Profile {
                     Ok(Profile {
                         inner: profile,
                         use_stats: true,
+                        query_len,
                     })
                 }
                 false => {
@@ -428,6 +430,7 @@ impl Profile {
                     Ok(Profile {
                         inner: profile,
                         use_stats: false,
+                        query_len,
                     })
                 }
             }
@@ -453,6 +456,7 @@ impl Profile {
         Ok(Profile {
             inner: profile,
             use_stats: true,
+            query_len,
         })
     }
 }
@@ -466,6 +470,7 @@ impl Default for Profile {
         Profile {
             inner: std::ptr::null_mut(),
             use_stats: false,
+            query_len: 0,
         }
     }
 }
@@ -889,6 +894,8 @@ impl Aligner {
                 Ok(AlignResult {
                     inner: result,
                     matrix: **self.matrix,
+                    query_len,
+                    ref_len,
                 })
             }
             AlignerFn::PFunction(f) => {
@@ -907,6 +914,8 @@ impl Aligner {
                 Ok(AlignResult {
                     inner: result,
                     matrix: **self.matrix,
+                    query_len: self.profile.query_len,
+                    ref_len,
                 })
             }
         }
@@ -944,6 +953,8 @@ impl Aligner {
         Ok(AlignResult {
             inner: result,
             matrix: **self.matrix,
+            query_len,
+            ref_len,
         })
     }
 
@@ -1020,6 +1031,8 @@ pub struct Traceback {
 pub struct AlignResult {
     inner: *mut parasail_result_t,
     matrix: *const parasail_matrix_t,
+    query_len: i32,
+    ref_len: i32,
 }
 
 impl AlignResult {
@@ -1103,18 +1116,24 @@ impl AlignResult {
     }
 
     /// Get score row.
-    pub fn get_score_row(&self) -> Result<i32, AlignResultError> {
+    pub fn get_score_row(&self) -> Result<&[i32], AlignResultError> {
         if self.is_rowcol() || self.is_stats_rowcol() {
-            unsafe { Ok(*parasail_result_get_score_row(self.inner)) }
+            unsafe {
+                let rptr = parasail_result_get_score_row(self.inner);
+                Ok(slice::from_raw_parts(rptr, self.ref_len as usize))
+            }
         } else {
             Err(AlignResultError::NoRowCol(String::from("get_score_row()")))
         }
     }
 
     /// Get matches row.
-    pub fn get_matches_row(&self) -> Result<i32, AlignResultError> {
+    pub fn get_matches_row(&self) -> Result<&[i32], AlignResultError> {
         if self.is_stats_rowcol() {
-            unsafe { Ok(*parasail_result_get_matches_row(self.inner)) }
+            unsafe {
+                let rptr = parasail_result_get_matches_row(self.inner);
+                Ok(slice::from_raw_parts(rptr, self.ref_len as usize))
+            }
         } else {
             Err(AlignResultError::NoRowCol(String::from(
                 "get_matches_row()",
@@ -1123,9 +1142,12 @@ impl AlignResult {
     }
 
     /// Get similar row.
-    pub fn get_similar_row(&self) -> Result<i32, AlignResultError> {
+    pub fn get_similar_row(&self) -> Result<&[i32], AlignResultError> {
         if self.is_stats_rowcol() {
-            unsafe { Ok(*parasail_result_get_similar_row(self.inner)) }
+            unsafe {
+                let rptr = parasail_result_get_similar_row(self.inner);
+                Ok(slice::from_raw_parts(rptr, self.ref_len as usize))
+            }
         } else {
             Err(AlignResultError::NoRowCol(String::from(
                 "get_similar_row()",
@@ -1134,27 +1156,36 @@ impl AlignResult {
     }
 
     /// Get length row.
-    pub fn get_length_row(&self) -> Result<i32, AlignResultError> {
+    pub fn get_length_row(&self) -> Result<&[i32], AlignResultError> {
         if self.is_stats_rowcol() {
-            unsafe { Ok(*parasail_result_get_length_row(self.inner)) }
+            unsafe {
+                let rptr = parasail_result_get_length_row(self.inner);
+                Ok(slice::from_raw_parts(rptr, self.ref_len as usize))
+            }
         } else {
             Err(AlignResultError::NoRowCol(String::from("get_length_row()")))
         }
     }
 
     /// Get score column.
-    pub fn get_score_col(&self) -> Result<i32, AlignResultError> {
+    pub fn get_score_col(&self) -> Result<&[i32], AlignResultError> {
         if self.is_rowcol() || self.is_stats_rowcol() {
-            unsafe { Ok(*parasail_result_get_score_col(self.inner)) }
+            unsafe {
+                let cptr = parasail_result_get_score_col(self.inner);
+                Ok(slice::from_raw_parts(cptr, self.query_len as usize))
+            }
         } else {
             Err(AlignResultError::NoRowCol(String::from("get_score_col()")))
         }
     }
 
     /// Get matches column.
-    pub fn get_matches_col(&self) -> Result<i32, AlignResultError> {
+    pub fn get_matches_col(&self) -> Result<&[i32], AlignResultError> {
         if self.is_stats_rowcol() {
-            unsafe { Ok(*parasail_result_get_matches_col(self.inner)) }
+            unsafe {
+                let cptr = parasail_result_get_matches_col(self.inner);
+                Ok(slice::from_raw_parts(cptr, self.query_len as usize))
+            }
         } else {
             Err(AlignResultError::NoRowCol(String::from(
                 "get_matches_col()",
@@ -1163,9 +1194,12 @@ impl AlignResult {
     }
 
     /// Get similar column.
-    pub fn get_similar_col(&self) -> Result<i32, AlignResultError> {
+    pub fn get_similar_col(&self) -> Result<&[i32], AlignResultError> {
         if self.is_stats_rowcol() {
-            unsafe { Ok(*parasail_result_get_similar_col(self.inner)) }
+            unsafe {
+                let cptr = parasail_result_get_similar_col(self.inner);
+                Ok(slice::from_raw_parts(cptr, self.query_len as usize))
+            }
         } else {
             Err(AlignResultError::NoRowCol(String::from(
                 "get_similar_col()",
@@ -1174,9 +1208,12 @@ impl AlignResult {
     }
 
     /// Get length column
-    pub fn get_length_col(&self) -> Result<i32, AlignResultError> {
+    pub fn get_length_col(&self) -> Result<&[i32], AlignResultError> {
         if self.is_stats_rowcol() {
-            unsafe { Ok(*parasail_result_get_length_col(self.inner)) }
+            unsafe {
+                let cptr = parasail_result_get_length_col(self.inner);
+                Ok(slice::from_raw_parts(cptr, self.query_len as usize))
+            }
         } else {
             Err(AlignResultError::NoRowCol(String::from("get_length_col()")))
         }
