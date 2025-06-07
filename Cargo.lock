@@ -136,9 +136,9 @@ dependencies = [
 
 [[package]]
 name = "libparasail-sys"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3aaa5164944cc6c55c046b31494ee39176347bbaefade04f644ebf6f29ec2bfd"
+checksum = "4920061fc0b3fd0d54b5ec017dd4508380a57c57d63b0594935a152d4241e212"
 dependencies = [
  "bindgen",
  "pkg-config",
@@ -186,7 +186,7 @@ checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
 name = "parasail-rs"
-version = "0.7.8"
+version = "0.7.9"
 dependencies = [
  "libc",
  "libparasail-sys",

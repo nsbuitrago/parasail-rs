@@ -2,6 +2,12 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.7.9 - 2025.06.06
+
+### Update
+
+- bump libparasail-sys 0.1.10 -> 0.1.11 (fixes cmake args formatting)
+
 ## 0.7.8 - 2025.06.03
 
 ### Update
