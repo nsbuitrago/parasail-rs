@@ -10,6 +10,7 @@ repository = "https://github.com/nsbuitrago/parasail-rs"
 documentation = "https://docs.rs/parasail-rs"
 
 [dependencies]
+derive_more = { version = "2.0.1", features = ["from"] }
 libc = "0.2.172"
 libparasail-sys = "0.1.10"
 log = "0.4.27"
