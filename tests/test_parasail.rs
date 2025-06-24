@@ -254,7 +254,7 @@ pub fn global_64bit() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().striped().build();
@@ -314,7 +314,7 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn matches_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
@@ -331,7 +331,7 @@ pub fn matches_table() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
@@ -347,7 +347,7 @@ pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn length_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
@@ -363,9 +363,9 @@ pub fn length_table() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn score_row() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
-    let reference = b"ACGT";
+    let reference = b"ACG";
     let aligner = Aligner::new()
         .use_last_rowcol()
         .use_stats()
@@ -376,16 +376,16 @@ pub fn score_row() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("Score row: {:?}", result.get_score_row()?);
+    assert_eq!(result.get_score_row().unwrap(), [1, 2, 3]);
 
     Ok(())
 }
 
 #[test]
 pub fn matches_row() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
-    let reference = b"ACGT";
+    let reference = b"ACG";
     let aligner = Aligner::new()
         .use_last_rowcol()
         .use_stats()
@@ -396,16 +396,16 @@ pub fn matches_row() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("Matches row: {:?}", result.get_matches_row()?);
+    assert_eq!(result.get_matches_row().unwrap(), [1, 2, 3]);
 
     Ok(())
 }
 
 #[test]
 pub fn similar_row() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
-    let reference = b"ACGT";
+    let reference = b"ACG";
     let aligner = Aligner::new()
         .use_last_rowcol()
         .use_stats()
@@ -416,16 +416,16 @@ pub fn similar_row() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("Similar row: {:?}", result.get_similar_row()?);
+    assert_eq!(result.get_similar_row().unwrap(), [1, 2, 3]);
 
     Ok(())
 }
 
 #[test]
 pub fn length_row() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
+    // one-off alignment without stats
     let query = b"ACGT";
-    let reference = b"ACGT";
+    let reference = b"ACG";
     let aligner = Aligner::new()
         .use_last_rowcol()
         .use_stats()
@@ -436,15 +436,15 @@ pub fn length_row() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("Length row: {:?}", result.get_length_row());
+    assert_eq!(result.get_length_row().unwrap(), [4, 4, 4]);
 
     Ok(())
 }
 
 #[test]
 pub fn score_col() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
-    let query = b"ACGT";
+    // one-off alignment without stats
+    let query = b"ACG";
     let reference = b"ACGT";
     let aligner = Aligner::new()
         .use_last_rowcol()
@@ -456,15 +456,15 @@ pub fn score_col() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("Score col: {:?}", result.get_score_col()?);
+    assert_eq!(result.get_score_col().unwrap(), [1, 2, 3]);
 
     Ok(())
 }
 
 #[test]
 pub fn match_col() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
-    let query = b"ACGT";
+    // one-off alignment without stats
+    let query = b"ACG";
     let reference = b"ACGT";
     let aligner = Aligner::new()
         .use_last_rowcol()
@@ -476,15 +476,15 @@ pub fn match_col() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("Matches col: {:?}", result.get_matches_col()?);
+    assert_eq!(result.get_matches_col().unwrap(), [1, 2, 3]);
 
     Ok(())
 }
 
 #[test]
 pub fn similar_col() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
-    let query = b"ACGT";
+    // one-off alignment without stats
+    let query = b"ACG";
     let reference = b"ACGT";
     let aligner = Aligner::new()
         .use_last_rowcol()
@@ -496,15 +496,15 @@ pub fn similar_col() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("Similar col: {:?}", result.get_similar_col()?);
+    assert_eq!(result.get_similar_col().unwrap(), [1, 2, 3]);
 
     Ok(())
 }
 
 #[test]
 pub fn length_col() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment wihthout stats
-    let query = b"ACGT";
+    // one-off alignment without stats
+    let query = b"ACG";
     let reference = b"ACGT";
     let aligner = Aligner::new()
         .use_last_rowcol()
@@ -516,7 +516,7 @@ pub fn length_col() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats_rowcol());
     assert!(result.is_stats());
     assert!(!result.is_stats_table());
-    println!("Length col: {:?}", result.get_length_col()?);
+    assert_eq!(result.get_length_col().unwrap(), [4, 4, 4]);
 
     Ok(())
 }
@@ -655,9 +655,12 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
         .striped()
         .build();
 
-    thread::spawn(move || {
-        for reference in refs {
-            match &aligner.align(None, reference) {
+    let handles: Vec<_> = refs
+        .iter()
+        .map(|reference| {
+            let aligner = aligner.clone();
+            let reference = reference.to_vec();
+            thread::spawn(move || match &aligner.align(None, &reference) {
                 Ok(result) => {
                     let score = result.get_score();
                     assert_eq!(score, query.len() as i32);
@@ -665,12 +668,13 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
                 Err(e) => {
                     println!("Alignment Error: {}", e);
                 }
-            }
-        }
-    })
-    .join()
-    .unwrap();
+            })
+        })
+        .collect();
 
+    for handle in handles {
+        handle.join().unwrap();
+    }
     Ok(())
 }
 
@@ -678,7 +682,7 @@ pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> 
 pub fn test_banded_nw() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
-    let aligner = Aligner::new().bandwith(2).build();
+    let aligner = Aligner::new().bandwidth(2).build();
     let result = aligner.banded_nw(query, reference)?;
     let expected_score = query.len() as i32;
 
@@ -722,14 +726,14 @@ pub fn test_ssw_init() -> Result<(), Box<dyn std::error::Error>> {
 //     let reference = b"ACGTTGA";
 //     let matrix = Matrix::default();
 //     let profile = Profile::new_ssw(query, &matrix, 1)?;
-//
+
 //     let aligner = Aligner::new().profile(profile).build();
 //     let result = aligner.ssw(None, reference)?;
-//
+
 //     let checks = query.len() as u16;
 //     let end = checks as i32 - 1;
 //     let start: i32 = 0;
-//
+
 //     println!("score {:?}", result.score());
 //     println!("query end {:?}", result.query_end());
 //     println!("ref end {:?}", result.ref_end());
@@ -737,12 +741,12 @@ pub fn test_ssw_init() -> Result<(), Box<dyn std::error::Error>> {
 //     println!("ref start {:?}", result.ref_start());
 //     println!("cigar {:?}", result.cigar());
 //     println!("cigar length {:?}", result.cigar_len());
-//
+
 //     assert_eq!(result.score(), checks);
 //     assert_eq!(result.query_end(), end);
 //     assert_eq!(result.ref_end(), end);
 //     assert_eq!(result.query_start(), start);
 //     assert_eq!(result.ref_start(), start);
-//
+
 //     Ok(())
 // }

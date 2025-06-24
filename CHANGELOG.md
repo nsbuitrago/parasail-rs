@@ -2,11 +2,27 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
-## 0.7.9 - 2025.06.06
+## 0.8.0 - 2025.06.24
+
+### Changes
+
+- Add central Error enum and Result type
+- Add SolutionWidth and InstructionSet enums for building specific profiles
+- Add ProfileBuilder struct for more control over profile configuration
+- Rename AlignResult -> Alignment
+  - Add query and ref length to the Alignment struct
+
+### Fix
+
+- output row/col slice for row/col alignment methods (thanks to @ctsa)
 
 ### Update
 
-- bump libparasail-sys 0.1.10 -> 0.1.11 (fixes cmake args formatting)
+- bump deps:
+  - libparasail-sys 0.1.10 -> 0.1.11
+  - libc 0.2.172 -> 0.2.174
+  - thiserror 1.0.69 -> 2.0.12
+- multithreaded alignment test
 
 ## 0.7.8 - 2025.06.03
 
@@ -119,7 +135,7 @@ issue on aarch64 linux with gcc-multilib available.
 ### Features
 
 - Add `global`, `semi_global`, and `local` methods to `AlignerBuilder` to set alignment algorithm.
-- Add `striped`, `scan`, and `diag` methods to `AlignerBuilder` to set vectorization method. 
+- Add `striped`, `scan`, and `diag` methods to `AlignerBuilder` to set vectorization method.
 
 ## 0.5.0 - 2024.03.11
 
@@ -186,7 +202,7 @@ New methods for AlignResults:
 
 - Check that aligner was initialized with use_stats = true before calling methods that requires additional stats:
     - get_matches
-    - get_length 
+    - get_length
 - Check that use_stats for profile and aligner match before aligning
 - Avoid calling `parasail_matrix_free` on drop for builtin matrices
 
@@ -214,7 +230,7 @@ New methods for AlignResults:
 
 ## 0.2.0 - 2024.02.25
 
-### Changes 
+### Changes
 
 - Use new builder pattern for aligner.
 - Better Matrix and Profile handling with Rc.
@@ -226,4 +242,3 @@ New methods for AlignResults:
 
 - Implements global, semi-global, and local alignment.
 - Supports query profiles or one-off alignments.
-
