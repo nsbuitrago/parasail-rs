@@ -17,7 +17,7 @@ use std::slice;
 /// Matrices can be created from:
 /// - an alphabet and match/mismatch scores
 /// - a pre-defined matrix (such as blosum62)
-/// - a file containing a substitution matrix (see from_file for format details)
+/// - a file containing a substitution matrix (see `from_file` for details)
 /// - a PSSM (position-specific scoring matrix)
 #[derive(Debug)]
 pub struct Matrix {
@@ -65,8 +65,9 @@ impl Matrix {
 
     /// Create a new scoring matrix from a file.
     /// Files should contain either square or position-specific scoring matrices.
-    /// Examples are directly from the [Parasail C lib docs](https://github.com/jeffdaily/parasail?tab=readme-ov-file#substitution-matrices).
-    /// Square:
+    /// The examples below are taken directly from the [Parasail C library docs](https://github.com/jeffdaily/parasail?tab=readme-ov-file#substitution-matrices).
+    ///
+    /// A square matrix can be loaded from a file with the following contents:
     /// ```plaintext
     ///#
     /// # Any line starting with '#' is a comment.
@@ -97,7 +98,8 @@ impl Matrix {
     /// *  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5  -5
     /// ```
     ///
-    /// PSSM:
+    /// A position specific scoring matrix can also be loaded from a file.
+    /// For example:
     /// ```plaintext
     ///#
     /// # Any line starting with '#' is a comment.
@@ -139,7 +141,7 @@ impl Matrix {
         }
     }
 
-    /// Create a new scoring matrix from a PSSM (position-specific scoring matrix).
+    /// Create a new scoring matrix from a position-specific scoring matrix.
     pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Result<Self> {
         let alphabet = CString::new(alphabet).map_err(Error::CreateErr)?;
 
@@ -192,7 +194,7 @@ impl Matrix {
         }
     }
 
-    /// Set value at a given row and column in a user defined substitution matrix.
+    /// Set value at a given row and column index for a user defined substitution matrix.
     pub fn set_value(&mut self, row: i32, col: i32, value: i32) -> Result<()> {
         if self.builtin {
             return Err(Error::NotBuiltIn.into());

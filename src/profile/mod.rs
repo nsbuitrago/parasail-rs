@@ -35,6 +35,7 @@ use crate::{InstructionSet, Matrix, Result, SolutionWidth};
 
 pub use error::*;
 
+/// Profile builder helper for more complex configuration.
 pub struct ProfileBuilder<'a> {
     query: &'a [u8],
     matrix: &'a Matrix,
@@ -72,7 +73,8 @@ impl<'a> ProfileBuilder<'a> {
     }
 
     /// Explicitly define SIMD instruction set. If not set here, the best
-    /// instruction set will be chosen automatically.
+    /// instruction set will be chosen automatically. Note, you should not need
+    /// to use this most of the time.
     pub fn instruction_set(&mut self, instruction_set: InstructionSet) -> &mut Self {
         self.instruction_set = instruction_set;
         self
@@ -104,6 +106,7 @@ impl<'a> ProfileBuilder<'a> {
         })
     }
 
+    /// Looks up the profile creation function based on the configured ProfileBuilder.
     fn profile_creator_lookup(
         &self,
     ) -> unsafe extern "C" fn(*const i8, i32, *const parasail_matrix) -> *mut parasail_profile {
@@ -278,6 +281,7 @@ pub struct Profile {
 }
 
 impl Profile {
+    /// Create a new profile builder for more control over the created profile.
     pub fn builder<'a>(query: &'a [u8], matrix: &'a Matrix) -> ProfileBuilder<'a> {
         ProfileBuilder::new(query, matrix)
     }
@@ -285,6 +289,8 @@ impl Profile {
     /// The with_stats should be set to true if you will use an alignment function that returns
     /// statistics. If true, the Profile will use the appropriate parasail functions to allocate
     /// additional data structures required for statistics.
+    /// To set the solution width or use specific instructions for some reason,
+    /// see `ProfileBuilder`.
     pub fn new(query_bytes: &[u8], with_stats: bool, matrix: &Matrix) -> Result<Self> {
         if query_bytes.is_empty() {
             return Err(Error::QueryIsEmpty.into());
