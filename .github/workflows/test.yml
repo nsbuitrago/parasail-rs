@@ -38,7 +38,6 @@ jobs:
           githubToken: ${{ github.token }}
 
           run: |
-            rustup target add ${{ matrix.target }}
             cargo install cross --git https://github.com/cross-rs/cross
             run: cross build --verbose --target ${{ matrix.target }}
             run: cross test --verbose --target ${{ matrix.target }}
