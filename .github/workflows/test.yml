@@ -11,29 +11,33 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  # build:
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v3
-      - name: Build
-        run: cargo build --verbose
-      - name: Run tests
-        run: cargo test --verbose
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Build
+  #       run: cargo build --verbose
+  #     - name: Run tests
+  #       run: cargo test --verbose
 
-  build-arm:
-    runs-on: ubuntu-latest
+  aarch-build:
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        #target: [aarch64-unknown-linux-gnu, armv7-unknown-linux-gnueabihf]
-        target: [aarch64-unknown-linux-gnu]
+        target: [aarch64, armv7]
+    name: Build/Test for aarch64/armv7
     steps:
-      - uses: actions/checkout@v3
-      - name: Install cross-compilation tools
-        run: |
-          rustup target add ${{ matrix.target }}
-          cargo install cross --git https://github.com/cross-rs/cross
-      - name: Build
-        run: cross build --verbose --target ${{ matrix.target }}
-      - name: Run tests
-        run: cross test --verbose --target ${{ matrix.target }}
+      - uses: actions/checkout@v4
+      - uses: uraimo/run-on-arch-action@v3
+        name: Run commands
+        with:
+          arch: armv7
+          distro: ubuntu24.04
+          githubToken: ${{ github.token }}
+
+          run: |
+            rustup target add ${{ matrix.target }}
+            cargo install cross --git https://github.com/cross-rs/cross
+            run: cross build --verbose --target ${{ matrix.target }}
+            run: cross test --verbose --target ${{ matrix.target }}
