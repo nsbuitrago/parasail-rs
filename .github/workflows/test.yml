@@ -2,22 +2,37 @@ name: Test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v3
+      - name: Build
+        run: cargo build --verbose
+      - name: Run tests
+        run: cargo test --verbose
 
+  build-arm:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [aarch64-unknown-linux-gnu, armv7-unknown-linux-gnueabihf]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install cross-compilation tools
+        run: |
+          rustup target add ${{ matrix.target }}
+          cargo install cross --git https://github.com/cross-rs/cross
+      - name: Build
+        run: cross build --verbose --target ${{ matrix.target }}
+      - name: Run tests
+        run: cross test --verbose --target ${{ matrix.target }}

@@ -30,6 +30,7 @@ use libparasail_sys::{
 };
 use std::ffi::{c_int, CString};
 use std::ops::Deref;
+use std::os::raw::c_char;
 
 use crate::{InstructionSet, Matrix, Result, SolutionWidth};
 
@@ -109,7 +110,8 @@ impl<'a> ProfileBuilder<'a> {
     /// Looks up the profile creation function based on the configured ProfileBuilder.
     fn profile_creator_lookup(
         &self,
-    ) -> unsafe extern "C" fn(*const i8, i32, *const parasail_matrix) -> *mut parasail_profile {
+    ) -> unsafe extern "C" fn(*const c_char, c_int, *const parasail_matrix) -> *mut parasail_profile
+    {
         match (&self.use_stats, &self.instruction_set, &self.solution_width) {
             // without stats
             (false, InstructionSet::SSE2, SolutionWidth::Sat) => {
