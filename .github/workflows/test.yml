@@ -9,50 +9,52 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  # build:
-  #   runs-on: ubuntu-latest
-
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - name: Build
-  #       run: cargo build --verbose
-  #     - name: Run tests
-  #       run: cargo test --verbose
-
-  aarch-build:
-    runs-on: ubuntu-24.04
-    strategy:
-      matrix:
-        target: [aarch64-unknown-linux-gnu, armv7-unknown-linux-gnueabihf]
-    name: Build/Test for ${{ matrix.target }}
+  test:
+    name: Test
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          profile: minimal
-          override: true
+          submodules: "recursive"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential
+
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Run tests
+        run: cargo test --verbose
+
+  build-cross:
+    name: Test ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-unknown-linux-gnu
+            cross-version: 0.2.5
+          - target: armv7-unknown-linux-gnueabihf
+            cross-version: 0.2.5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross
-      - name: Setup linker
-        run: |
-          # Required to make Parasail build
-          export CMAKE_POLICY_VERSION_MINIMUM="3.5"
 
-          if [[ ! -z "$TARGET_CC" ]]; then
-            export CC="$TARGET_CC"
-            export AR="$TARGET_AR"
-            export CXX="$TARGET_CXX"
-            export BINDGEN_EXTRA_CLANG_ARGS="--sysroot $TARGET_SYSROOT"
-          else
-            export CFLAGS="-Wno-error"
-            export CXXFLAGS="-Wno-error"
-            export BINDGEN_EXTRA_CLANG_ARGS="-Wno-error"
-          fi
       - name: Build
         run: cross build --verbose --target ${{ matrix.target }}
-      - name: Run tests
-        run: cross test --verbose --target ${{ matrix.target }}
+
+      # see edges testing with cross-rs
+      # https://github.com/cross-rs/cross
+      # - name: Run tests
+      #   run: cross test --verbose --target ${{ matrix.target }}
