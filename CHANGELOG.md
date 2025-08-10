@@ -2,6 +2,13 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.8.2 - 2025.10.01 (Planned)
+
+### Improvements
+
+- parasail-rs error enums moved to use derive_more.
+- Remove thiserror dep.
+
 ## 0.8.0 - 2025.06.24
 
 ### Changes
