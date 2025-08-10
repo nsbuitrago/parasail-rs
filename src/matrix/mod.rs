@@ -33,7 +33,7 @@ impl Matrix {
         assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
         assert!(!alphabet.is_empty(), "Alphabet should not be empty.");
         unsafe {
-            let alphabet = &CString::new(alphabet).map_err(Error::NulError)?;
+            let alphabet = &CString::new(alphabet).map_err(Error::InteriorNulByte)?;
             Ok(Self {
                 inner: parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score),
                 builtin: false,
@@ -49,12 +49,12 @@ impl Matrix {
         assert!(!matrix_name.is_empty(), "Matrix name should not be empty.");
         let matrix: *const parasail_matrix_t;
         unsafe {
-            let matrix_name = CString::new(matrix_name).map_err(Error::NulError)?;
+            let matrix_name = CString::new(matrix_name).map_err(Error::InteriorNulByte)?;
             matrix = parasail_matrix_lookup(matrix_name.as_ptr());
         }
 
         if matrix.is_null() {
-            return Err(Error::LookupErr(matrix_name.to_string()).into());
+            return Err(Error::FailedLookup(matrix_name.to_string()).into());
         }
 
         Ok(Self {
@@ -125,13 +125,13 @@ impl Matrix {
             return Err(Error::FileNotFound(filepath.to_str().unwrap_or("").to_string()).into());
         }
 
-        let file = CString::new(file).map_err(Error::NulError)?;
+        let file = CString::new(file).map_err(Error::InteriorNulByte)?;
 
         unsafe {
             let matrix = parasail_matrix_from_file(file.as_ptr());
 
             if matrix.is_null() {
-                return Err(Error::FromFileErr(filepath.to_str().unwrap_or("").to_string()).into());
+                return Err(Error::NullMatrix.into());
             }
 
             Ok(Self {
@@ -143,13 +143,13 @@ impl Matrix {
 
     /// Create a new scoring matrix from a position-specific scoring matrix.
     pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Result<Self> {
-        let alphabet = CString::new(alphabet).map_err(Error::NulError)?;
+        let alphabet = CString::new(alphabet).map_err(Error::InteriorNulByte)?;
 
         unsafe {
             let matrix = parasail_matrix_pssm_create(alphabet.as_ptr(), values.as_ptr(), rows);
 
             if matrix.is_null() {
-                return Err(Error::CreatePssmErr.into());
+                return Err(Error::NullMatrix.into());
             }
 
             Ok(Self {
@@ -165,7 +165,7 @@ impl Matrix {
             !pssm_query.is_empty(),
             "PSSM query sequence should not be empty."
         );
-        let pssm_query_string = CString::new(pssm_query).map_err(Error::NulError)?;
+        let pssm_query_string = CString::new(pssm_query).map_err(Error::InteriorNulByte)?;
 
         unsafe {
             let matrix = parasail_matrix_copy(self.inner);

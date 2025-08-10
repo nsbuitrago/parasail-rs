@@ -10,9 +10,9 @@ pub enum Error {
     NoRowCol(String),
     NoTrace(String),
     #[from]
-    IntoStringError(IntoStringError),
+    InvalidUTF8String(IntoStringError),
     #[from]
-    NulError(NulError),
+    InteriorNulByte(NulError),
     NoBandwidth,
 }
 

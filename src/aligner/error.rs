@@ -5,10 +5,10 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug, From)]
 pub enum Error {
     #[from]
-    NulError(NulError),
+    InteriorNulByte(NulError),
     NoBandwidth,
     #[from]
-    AlignmentErr(crate::aligner::alignment::Error),
+    Alignment(crate::aligner::alignment::Error),
 }
 
 impl Display for Error {

@@ -7,11 +7,9 @@ use std::{
 #[derive(Debug, From)]
 pub enum Error {
     #[from]
-    NulError(NulError),
-    LookupErr(String),
-    FromFileErr(String),
+    InteriorNulByte(NulError),
+    FailedLookup(String),
     FileNotFound(String),
-    CreatePssmErr,
     NullMatrix,
     NotSquare,
     NotBuiltIn,

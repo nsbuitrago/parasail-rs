@@ -13,7 +13,7 @@ pub enum Error {
     },
     NullProfile,
     #[from]
-    NulError(NulError),
+    InteriorNulByte(NulError),
 }
 
 impl Display for Error {
