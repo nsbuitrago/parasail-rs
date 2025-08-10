@@ -6,8 +6,6 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug, From)]
 pub enum Error {
     QueryIsEmpty,
-    // #[error("Error creating profile: {0}")]
-    // CreateErr(#[from] NulError),
     ProfileFnLookupFailed {
         use_stats: bool,
         instruction_set: InstructionSet,

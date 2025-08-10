@@ -1,12 +1,20 @@
+use derive_more::From;
 use std::ffi::NulError;
-use thiserror::Error;
+use std::fmt::{Display, Formatter};
 
-#[derive(Error, Debug)]
+#[derive(Debug, From)]
 pub enum Error {
-    #[error("Alignment initialization error: {0}")]
-    AlignInitErr(#[from] NulError),
-    #[error("No bandwidth set for banded alignment.")]
+    #[from]
+    NulError(NulError),
     NoBandwidth,
-    #[error("Alignment error: {0}")]
-    AlignmentErr(#[from] crate::aligner::alignment::Error),
+    #[from]
+    AlignmentErr(crate::aligner::alignment::Error),
 }
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> std::result::Result<(), std::fmt::Error> {
+        write!(f, "{self:?}")
+    }
+}
+
+impl std::error::Error for Error {}

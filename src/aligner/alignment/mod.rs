@@ -275,10 +275,10 @@ impl Alignment {
         if self.is_trace() {
             let query_len = query.len() as i32;
             let ref_len = reference.len() as i32;
-            let query = CString::new(query).map_err(Error::NewCStringErr)?;
-            let reference = CString::new(reference).map_err(Error::NewCStringErr)?;
-            let match_char = CString::new("|").map_err(Error::NewCStringErr)?;
-            let mismatch_char = CString::new(" ").map_err(Error::NewCStringErr)?;
+            let query = CString::new(query).map_err(Error::NulError)?;
+            let reference = CString::new(reference).map_err(Error::NulError)?;
+            let match_char = CString::new("|").map_err(Error::NulError)?;
+            let mismatch_char = CString::new(" ").map_err(Error::NulError)?;
             unsafe {
                 let alignment = parasail_result_get_traceback(
                     self.inner,
@@ -294,13 +294,13 @@ impl Alignment {
 
                 let query_traceback = CString::from_raw((*alignment).query)
                     .into_string()
-                    .map_err(Error::CigarToStringErr)?;
+                    .map_err(Error::IntoStringError)?;
                 let comparison_traceback = CString::from_raw((*alignment).comp)
                     .into_string()
-                    .map_err(Error::CigarToStringErr)?;
+                    .map_err(Error::IntoStringError)?;
                 let reference_traceback = CString::from_raw((*alignment).ref_)
                     .into_string()
-                    .map_err(Error::CigarToStringErr)?;
+                    .map_err(Error::IntoStringError)?;
 
                 Ok(Traceback {
                     query: query_traceback.clone(),
@@ -317,9 +317,9 @@ impl Alignment {
     pub fn get_cigar(&self, query: &[u8], reference: &[u8]) -> Result<String> {
         if self.is_trace() {
             let query_len = query.len() as i32;
-            let query = CString::new(query).map_err(Error::NewCStringErr)?;
+            let query = CString::new(query).map_err(Error::NulError)?;
             let ref_len = reference.len() as i32;
-            let reference = CString::new(reference).map_err(Error::NewCStringErr)?;
+            let reference = CString::new(reference).map_err(Error::NulError)?;
 
             let cigar: String;
             unsafe {
@@ -336,7 +336,7 @@ impl Alignment {
 
                 cigar = CString::from_raw(parasail_cigar_decode(cigar_encoded.inner))
                     .into_string()
-                    .map_err(Error::CigarToStringErr)?;
+                    .map_err(Error::IntoStringError)?;
             }
 
             Ok(cigar)

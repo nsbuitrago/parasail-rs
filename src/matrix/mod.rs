@@ -33,7 +33,7 @@ impl Matrix {
         assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
         assert!(!alphabet.is_empty(), "Alphabet should not be empty.");
         unsafe {
-            let alphabet = &CString::new(alphabet).map_err(Error::CreateErr)?;
+            let alphabet = &CString::new(alphabet).map_err(Error::NulError)?;
             Ok(Self {
                 inner: parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score),
                 builtin: false,
@@ -49,7 +49,7 @@ impl Matrix {
         assert!(!matrix_name.is_empty(), "Matrix name should not be empty.");
         let matrix: *const parasail_matrix_t;
         unsafe {
-            let matrix_name = CString::new(matrix_name).map_err(Error::CreateErr)?;
+            let matrix_name = CString::new(matrix_name).map_err(Error::NulError)?;
             matrix = parasail_matrix_lookup(matrix_name.as_ptr());
         }
 
@@ -125,7 +125,7 @@ impl Matrix {
             return Err(Error::FileNotFound(filepath.to_str().unwrap_or("").to_string()).into());
         }
 
-        let file = CString::new(file).map_err(Error::CreateErr)?;
+        let file = CString::new(file).map_err(Error::NulError)?;
 
         unsafe {
             let matrix = parasail_matrix_from_file(file.as_ptr());
@@ -143,7 +143,7 @@ impl Matrix {
 
     /// Create a new scoring matrix from a position-specific scoring matrix.
     pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Result<Self> {
-        let alphabet = CString::new(alphabet).map_err(Error::CreateErr)?;
+        let alphabet = CString::new(alphabet).map_err(Error::NulError)?;
 
         unsafe {
             let matrix = parasail_matrix_pssm_create(alphabet.as_ptr(), values.as_ptr(), rows);
@@ -165,7 +165,7 @@ impl Matrix {
             !pssm_query.is_empty(),
             "PSSM query sequence should not be empty."
         );
-        let pssm_query_string = CString::new(pssm_query).map_err(Error::CreateErr)?;
+        let pssm_query_string = CString::new(pssm_query).map_err(Error::NulError)?;
 
         unsafe {
             let matrix = parasail_matrix_copy(self.inner);
@@ -184,7 +184,7 @@ impl Matrix {
             );
 
             if converted_matrix.is_null() {
-                panic!("Error converting matrix to PSSM. Invalid query sequence.")
+                return Err(Error::NullMatrix.into());
             }
 
             Ok(Matrix {
@@ -208,7 +208,7 @@ impl Matrix {
             }
 
             if row < 0 || row > size || col < 0 || col > size {
-                return Err(Error::InvalidIndex(row, col, size).into());
+                return Err(Error::InvalidIndex(row, col).into());
             }
 
             parasail_matrix_set_value(self.inner.cast_mut(), row, col, value);
