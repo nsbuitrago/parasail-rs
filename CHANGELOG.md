@@ -2,6 +2,12 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.8.1 - 2025.08.01
+
+### Fix
+
+- ARM Linux architecture support
+
 ## 0.8.0 - 2025.06.24
 
 ### Changes
