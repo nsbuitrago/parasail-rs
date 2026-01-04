@@ -1,4 +1,5 @@
 mod error;
+mod table;
 
 use libparasail_sys::{
     parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_matrix_t,
@@ -23,6 +24,7 @@ use std::slice;
 
 use crate::Result;
 pub use error::Error;
+pub use table::Table;
 
 /// CIGAR string for sequence alignment.
 struct CigarString {
@@ -92,10 +94,41 @@ impl Alignment {
         }
     }
 
-    /// Get score table.
-    pub fn get_score_table(&self) -> Result<i32> {
+    /// Get the score table.
+    ///
+    /// The table has dimensions (query_len, ref_len) and contains alignment scores
+    /// for all positions in the dynamic programming table.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use parasail_rs::Aligner;
+    /// # let query = b"ACGT";
+    /// # let reference = b"ACGT";
+    /// # let aligner = Aligner::new().use_table().build();
+    /// let result = aligner.align(Some(query), reference)?;
+    /// let table = result.get_score_table()?;
+    ///
+    /// // Access specific cell
+    /// if let Some(score) = table.get(0, 0) {
+    ///     println!("Score at (0, 0): {}", score);
+    /// }
+    ///
+    /// // Get final score
+    /// println!("Final score: {}", table.final_value());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn get_score_table(&self) -> Result<Table> {
         if self.is_table() || self.is_stats_table() {
-            unsafe { Ok(*parasail_result_get_score_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_score_table(self.inner);
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+                Ok(Table::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoTable(String::from("get_score_table()")))?
         }

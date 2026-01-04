@@ -258,13 +258,17 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().striped().build();
-    let default_score = 1;
 
     let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(!result.is_stats());
     assert!(!result.is_stats_table());
-    assert_eq!(result.get_score_table()?, default_score);
+
+    let table = result.get_score_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+    assert_eq!(table.last(), query.len() as i32);
+    assert!(table.get(0, 0).is_some());
 
     // one-off alignment with stats
     let aligner = Aligner::new().use_stats().use_table().striped().build();
@@ -273,7 +277,11 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(result.is_stats_table());
     assert!(result.is_table());
-    assert_eq!(result.get_score_table()?, default_score);
+
+    let table = result.get_score_table()?;
+    println!("{}", table);
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
 
     // alignment with profile, without stats
     let custom_score = 3;
@@ -291,9 +299,11 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result_w_profile.is_table());
     assert!(!result_w_profile.is_stats());
     assert!(!result_w_profile.is_stats_table());
-    assert_eq!(result_w_profile.get_score_table()?, custom_score);
 
-    // // alignment with profile, with stats
+    let table = result_w_profile.get_score_table()?;
+    assert_eq!(table.last(), query.len() as i32 * custom_score);
+
+    // alignment with profile, with stats
     let profile = Profile::new(query, true, &matrix)?;
     let aligner_w_profile = Aligner::new()
         .profile(profile)
@@ -307,7 +317,9 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result_w_profile.is_stats());
     assert!(result_w_profile.is_stats_table());
     assert!(result_w_profile.is_table());
-    assert_eq!(result_w_profile.get_score_table()?, custom_score);
+
+    let table = result_w_profile.get_score_table()?;
+    assert_eq!(table.last(), query.len() as i32 * custom_score);
 
     Ok(())
 }
