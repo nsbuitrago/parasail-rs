@@ -13,5 +13,5 @@ documentation = "https://docs.rs/parasail-rs"
 derive_more = { version = "2.1.1", features = ["from"] }
 libc = "0.2.179"
 libparasail-sys = "0.1.12"
-log = "0.4.27"
+log = "0.4.29"
 thiserror = "2.0.17"
