@@ -2,6 +2,21 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.9.0 - 2026.01.xx
+
+### Fix
+
+- Properly expose `AlignerBuilder`, `Alignment`, and `Traceback` structs.
+
+### Update
+
+- bump deps:
+  - thiserror 2.0.12 -> 2.0.17
+  - derive_more 2.0.1 -> 2.1.1
+  - libc 0.2.174 -> 0.2.179
+  - log 0.4.27 -> 0.4.29
+  - libparasail-sys 0.1.12 -> 0.2.0
+
 ## 0.8.1 - 2025.08.01
 
 ### Fix
