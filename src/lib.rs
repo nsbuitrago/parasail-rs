@@ -59,12 +59,10 @@
 mod aligner;
 mod error;
 mod matrix;
+mod prelude;
 mod profile;
 
-pub use aligner::Aligner;
-pub use error::{Error, Result};
-pub use matrix::Matrix;
-pub use profile::Profile;
+pub use prelude::*;
 
 #[derive(Debug)]
 pub enum SolutionWidth {
