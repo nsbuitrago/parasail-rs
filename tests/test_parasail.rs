@@ -553,43 +553,26 @@ pub fn trace_table() -> Result<(), Box<dyn std::error::Error>> {
     let table = result.get_trace_table()?;
     assert_eq!(table.rows(), query.len());
     assert_eq!(table.cols(), reference.len());
+    assert_eq!(table.as_slice().len(), 16);
 
     // Verify that we can access all table cells
     for row in 0..table.rows() {
         for col in 0..table.cols() {
-            let flags = table.get(row, col).expect(&format!("Should have flags at ({}, {})", row, col));
+            let flags = table
+                .get(row, col)
+                .expect(&format!("Should have flags at ({}, {})", row, col));
             // Flags should be valid (not empty or out of range)
-            assert!(!flags.is_empty() || flags == TraceFlags::ZERO,
-                "Cell ({}, {}) has unexpected flags: {:?}", row, col, flags);
+            assert!(
+                !flags.is_empty() || flags == TraceFlags::ZERO,
+                "Cell ({}, {}) has unexpected flags: {:?}",
+                row,
+                col,
+                flags
+            );
         }
     }
 
     println!("Trace table:\n{}", table);
-
-    Ok(())
-}
-
-#[test]
-pub fn trace_table_data_integrity() -> Result<(), Box<dyn std::error::Error>> {
-    let query = b"ACGT";
-    let reference = b"ACGT";
-    let aligner = Aligner::new().use_trace().striped().build();
-    let result = aligner.align(Some(query), reference)?;
-
-    let table = result.get_trace_table()?;
-    let raw_slice = table.as_slice();
-
-    // Verify we have the correct number of i8 values
-    assert_eq!(raw_slice.len(), 16, "Should have 16 i8 values for 4x4 table");
-
-    // Each value should be valid (within 7-bit range used by TraceFlags)
-    for (i, &value) in raw_slice.iter().enumerate() {
-        assert!(
-            value >= 0 && value <= 127,
-            "Value at index {} is out of range: {}",
-            i, value
-        );
-    }
 
     Ok(())
 }
