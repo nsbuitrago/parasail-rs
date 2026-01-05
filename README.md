@@ -23,7 +23,7 @@ Note that parasail-rs depends on libparasail-sys which will either use an alread
 For one-off alignments:
 
 ```rust
-use parasail_rs::{Aligner};
+use parasail_rs::prelude::Aligner;
 
 // ...
 
@@ -34,10 +34,12 @@ let aligner = Aligner::new().build();
 aligner.align(Some(query), reference)?;
 ```
 
-Using query profile:
+When using striped or scan vectorization strategies, some performance may
+be gained by reusing the query sequence. This can be done by creating a
+query profile and reusing it for multiple alignments.
 
 ```rust
-use parasail_rs::{Matrix, Aligner, Profile};
+use parasail_rs::prelude::{Matrix, Aligner, Profile};
 
 // ...
 
