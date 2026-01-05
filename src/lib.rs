@@ -61,6 +61,7 @@ mod error;
 mod matrix;
 mod profile;
 
+pub use aligner::alignment::table::TraceFlags;
 pub use aligner::Aligner;
 pub use error::{Error, Result};
 pub use matrix::Matrix;

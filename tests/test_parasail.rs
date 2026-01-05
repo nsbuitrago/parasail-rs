@@ -1,4 +1,4 @@
-use parasail_rs::{Aligner, Matrix, Profile};
+use parasail_rs::{Aligner, Matrix, Profile, TraceFlags};
 use std::thread;
 
 #[test]
@@ -326,24 +326,26 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
 
 #[test]
 pub fn matches_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment without stats
     let query = b"ACGT";
-    let reference = b"ACGT";
+    let reference = b"ACGTT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
-    let default_score = 1;
 
     let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
-    assert_eq!(result.get_matches_table()?, default_score);
+
+    let table = result.get_matches_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+    assert_eq!(table.last(), query.len() as i32);
+    println!("Matches table:\n{}", table);
 
     Ok(())
 }
 
 #[test]
 pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
@@ -352,23 +354,30 @@ pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
-    println!("similar table: {:?}", result.get_similar_table()?);
+
+    let table = result.get_similar_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+    println!("Similar table:\n{}", table);
 
     Ok(())
 }
 
 #[test]
 pub fn length_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment without stats
     let query = b"ACGT";
-    let reference = b"ACGT";
+    let reference = b"ACGTTT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
 
     let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
-    println!("Length table: {:?}", result.get_length_table()?);
+
+    let table = result.get_length_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+    println!("Length table:\n{}", table);
 
     Ok(())
 }
@@ -540,7 +549,47 @@ pub fn trace_table() -> Result<(), Box<dyn std::error::Error>> {
     let aligner = Aligner::new().use_trace().striped().build();
     let result = aligner.align(Some(query), reference)?;
     assert!(result.is_trace());
-    println!("Trace table: {:?}", result.get_trace_table()?);
+
+    let table = result.get_trace_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+
+    // Verify that we can access all table cells
+    for row in 0..table.rows() {
+        for col in 0..table.cols() {
+            let flags = table.get(row, col).expect(&format!("Should have flags at ({}, {})", row, col));
+            // Flags should be valid (not empty or out of range)
+            assert!(!flags.is_empty() || flags == TraceFlags::ZERO,
+                "Cell ({}, {}) has unexpected flags: {:?}", row, col, flags);
+        }
+    }
+
+    println!("Trace table:\n{}", table);
+
+    Ok(())
+}
+
+#[test]
+pub fn trace_table_data_integrity() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let reference = b"ACGT";
+    let aligner = Aligner::new().use_trace().striped().build();
+    let result = aligner.align(Some(query), reference)?;
+
+    let table = result.get_trace_table()?;
+    let raw_slice = table.as_slice();
+
+    // Verify we have the correct number of i8 values
+    assert_eq!(raw_slice.len(), 16, "Should have 16 i8 values for 4x4 table");
+
+    // Each value should be valid (within 7-bit range used by TraceFlags)
+    for (i, &value) in raw_slice.iter().enumerate() {
+        assert!(
+            value >= 0 && value <= 127,
+            "Value at index {} is out of range: {}",
+            i, value
+        );
+    }
 
     Ok(())
 }

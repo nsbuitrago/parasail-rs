@@ -2,6 +2,38 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.9.1 - 2026.01.04
+
+## 0.9.0 - 2026.01.03
+
+### Breaking Changes
+
+- Fixed table getter methods to return full tables instead of raw pointer:
+  - `get_score_table()` now returns `Result<Table>` instead of `Result<i32>`
+  - `get_matches_table()` now returns `Result<Table>` instead of `Result<i32>`
+  - `get_similar_table()` now returns `Result<Table>` instead of `Result<i32>`
+  - `get_length_table()` now returns `Result<Table>` instead of `Result<i32>`
+  - `get_trace_table()` now returns `Result<TracebackTable>` instead of `Result<i32>`
+
+### Added
+
+- New `Table` struct providing access to alignment tables (scores, similar, length).
+  - `.get(row, col)` for bounds-checked access to individual cells.
+  - `.rows()` and `.cols()` for table dimensions.
+  - `.last()` for the last cell (typically the final alignment score).
+  - `.as_slice()` for raw data access.
+  - `Display` implementation for pretty-printing tables.
+- `TracebackTable` struct providing access to traceback table.
+  - `.get(row, col)` for bounds-checked access to individual cells returning simple flags
+    including 'DIAG', 'INS', and 'DEL'.
+  - `.get_detailed(row, col)` for bounds-checked access to individual cells returning all
+    parasail flags (such as 'INS_E`, 'DEL_F', etc.)
+  - `.rows()` and `.cols()` for table dimensions.
+  - `.as_slice()` for raw data access.
+  - `fmt::Display` implementation for pretty-printing tables with simple flags, and
+    `fmt::Debug` implementation for printing detailed parasail flags. 
+- `bitflags` dependency for ergonmic TraceFlags generation.
+
 ## 0.8.1 - 2025.08.01
 
 ### Fix

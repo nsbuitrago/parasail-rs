@@ -1,5 +1,5 @@
 mod error;
-mod table;
+pub mod table;
 
 use libparasail_sys::{
     parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_matrix_t,
@@ -22,6 +22,7 @@ use libparasail_sys::{
 use std::ffi::CString;
 use std::slice;
 
+use crate::aligner::alignment::table::TracebackTable;
 use crate::Result;
 pub use error::Error;
 pub use table::Table;
@@ -114,7 +115,7 @@ impl Alignment {
     /// }
     ///
     /// // Get final score
-    /// println!("Final score: {}", table.final_value());
+    /// println!("Final score: {}", table.last());
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn get_score_table(&self) -> Result<Table> {
@@ -134,28 +135,55 @@ impl Alignment {
         }
     }
 
-    /// Get matches table.
-    pub fn get_matches_table(&self) -> Result<i32> {
+    /// Get the matches table.
+    pub fn get_matches_table(&self) -> Result<Table> {
         if self.is_stats_table() {
-            unsafe { Ok(*parasail_result_get_matches_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_matches_table(self.inner);
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+                Ok(Table::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoStatsTable(String::from("get_matches_table()")))?
         }
     }
 
-    /// Get similar table.
-    pub fn get_similar_table(&self) -> Result<i32> {
+    /// Get the similar table.
+    pub fn get_similar_table(&self) -> Result<Table> {
         if self.is_stats_table() {
-            unsafe { Ok(*parasail_result_get_similar_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_similar_table(self.inner);
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+                Ok(Table::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoStatsTable(String::from("get_similar_table()")))?
         }
     }
 
-    /// Get length table.
-    pub fn get_length_table(&self) -> Result<i32> {
+    /// Get the length table.
+    pub fn get_length_table(&self) -> Result<Table> {
         if self.is_stats_table() {
-            unsafe { Ok(*parasail_result_get_length_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_length_table(self.inner);
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+                Ok(Table::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoStatsTable(String::from("get_length_table()")))?
         }
@@ -257,10 +285,20 @@ impl Alignment {
         }
     }
 
-    /// Get trace table.
-    pub fn get_trace_table(&self) -> Result<i32> {
+    /// Get the trace table.
+    pub fn get_trace_table(&self) -> Result<TracebackTable> {
         if self.is_trace() {
-            unsafe { Ok(*parasail_result_get_trace_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_trace_table(self.inner) as *const i8;
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+
+                Ok(TracebackTable::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoTrace(String::from("get_trace_table()")))?
         }
