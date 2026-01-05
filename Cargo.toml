@@ -14,5 +14,4 @@ derive_more = { version = "2.1.1", features = ["from"] }
 libc = "0.2.179"
 libparasail-sys = "0.2.0"
 log = "0.4.29"
-thiserror = "2.0.17"
 bitflags = "2.10.0"
