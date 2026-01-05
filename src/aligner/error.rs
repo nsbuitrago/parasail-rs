@@ -8,7 +8,7 @@ pub enum Error {
     InteriorNulByte(NulError),
     NoBandwidth,
     #[from]
-    Alignment(crate::aligner::alignment::Error),
+    Alignment(crate::alignment::Error),
 }
 
 impl Display for Error {

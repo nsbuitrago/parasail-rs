@@ -1,6 +1,8 @@
+//! Substitution matrices.
+
 mod error;
 
-use crate::Result;
+use crate::prelude::Result;
 pub use error::Error;
 use libparasail_sys::{
     parasail_matrix_convert_square_to_pssm, parasail_matrix_copy, parasail_matrix_create,
@@ -45,6 +47,13 @@ impl Matrix {
     /// The matrix name should be one of the following:
     /// - blosum{30, 35, 40, 45, 50, 55, 60, 62, 65, 70, 75, 80, 85, 90, 95, 100}
     /// - pam{10-500} (in steps of 10, i.e., pam10, pam20, ... pam500).
+    ///
+    /// For example:
+    /// ```rust,no_run
+    /// use parasail_rs::prelude::Matrix;
+    ///
+    /// let blosum62 = Matrix::from("blosum62");
+    /// ```
     pub fn from(matrix_name: &str) -> Result<Self> {
         assert!(!matrix_name.is_empty(), "Matrix name should not be empty.");
         let matrix: *const parasail_matrix_t;
@@ -160,6 +169,13 @@ impl Matrix {
     }
 
     /// Convert a square scoring matrix to a PSSM (position-specific scoring matrix).
+    ///
+    /// For example:
+    /// ```rust,no_run
+    /// use parasail_rs::prelude::Matrix;
+    /// let blosum62 = Matrix::from("blosum62");
+    /// let blosum62_pssm = blosum62.to_pssm(b"ACGT");
+    /// ```
     pub fn to_pssm(self, pssm_query: &[u8]) -> Result<Matrix> {
         assert!(
             !pssm_query.is_empty(),
@@ -195,6 +211,11 @@ impl Matrix {
     }
 
     /// Set value at a given row and column index for a user defined substitution matrix.
+    /// ```rust,no_run
+    /// // custom matrix
+    /// let mut matrix = Matrix::create(b"ACGT", 3, -2)?;
+    /// matrix.set_value(2, 2, -1)?;
+    /// ```
     pub fn set_value(&mut self, row: i32, col: i32, value: i32) -> Result<()> {
         if self.builtin {
             return Err(Error::NotBuiltIn.into());

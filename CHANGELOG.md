@@ -22,6 +22,8 @@ All notable changes will be documented here in reverse chronological order the h
   - `fmt::Display` implementation for pretty-printing tables with simple flags, and
     `fmt::Debug` implementation for printing detailed parasail flags. 
 - `bitflags` dependency for ergonmic TraceFlags generation.
+- Submodules are now public (`aligner`, `matrix`, `profile`, etc.)
+- A `prelude` module for cleaner imports (`Matrix`, `Aligner`, `Alignment`, etc.)
 
 ### Breaking Changes
 

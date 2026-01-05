@@ -1,3 +1,5 @@
+//! Query profiles.
+
 mod error;
 
 use libparasail_sys::{
@@ -32,7 +34,7 @@ use std::ffi::{c_int, CString};
 use std::ops::Deref;
 use std::os::raw::c_char;
 
-use crate::{InstructionSet, Matrix, Result, SolutionWidth};
+use crate::prelude::{InstructionSet, Matrix, Result, SolutionWidth};
 
 pub use error::*;
 

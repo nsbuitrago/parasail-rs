@@ -1,3 +1,5 @@
+//! parasail-rs errors.
+
 use derive_more::From;
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -11,7 +13,7 @@ pub enum Error {
     #[from]
     Aligner(crate::aligner::Error),
     #[from]
-    Alignment(crate::aligner::alignment::Error),
+    Alignment(crate::alignment::Error),
 }
 
 impl std::fmt::Display for Error {

@@ -1,4 +1,5 @@
-use crate::{Matrix, Profile};
+//! Creating and configuring sequence aligners.
+
 use libc::c_char;
 use libparasail_sys::{
     parasail_lookup_function, parasail_lookup_pfunction, parasail_matrix_t, parasail_nw_banded,
@@ -8,16 +9,16 @@ use log::warn;
 use std::ffi::CString;
 use std::sync::Arc;
 
-pub(crate) mod alignment;
-mod error;
+use crate::alignment::*;
+use crate::prelude::{Matrix, Profile, Result};
 
-use crate::Result;
-pub use alignment::*;
+mod error;
 pub use error::Error;
 
 /// Parasail alignment function type.
 #[derive(Clone)]
 enum AlignerFn {
+    // one off alignment function signatures
     Function(
         Option<
             unsafe extern "C" fn(
@@ -31,6 +32,7 @@ enum AlignerFn {
             ) -> *mut parasail_result_t,
         >,
     ),
+    // profile alignment function signatures
     PFunction(
         Option<
             unsafe extern "C" fn(
@@ -44,8 +46,8 @@ enum AlignerFn {
     ),
 }
 
-/// Check if the aligner function is none.
 impl AlignerFn {
+    /// Check if the aligner function is none variant.
     fn is_none(&self) -> bool {
         match self {
             AlignerFn::Function(f) => f.is_none(),
@@ -54,7 +56,14 @@ impl AlignerFn {
     }
 }
 
-/// Aligner builder
+/// Aligner builder.
+///
+/// To create a new aligner builder, use `Aligner::new()`.
+/// This default aligner uses global alignment with an identity matrix for DNA
+/// sequences and no gap penalties. No profile, trace, table, or stats options
+/// are set. Vectorization strategy is set to striped by default.
+///
+/// To configure these options, use the setter methods listed below.
 pub struct AlignerBuilder {
     mode: String,
     solution_width: String,
@@ -113,30 +122,32 @@ impl AlignerBuilder {
         self
     }
 
-    /// Set solution width (8, 16, 32, or 64 bit). By default, will use sat
-    /// (i.e., 8-bit solution width first and falling back to 16-bit if necessary).
+    /// Set solution width (8, 16, 32, or 64 bit). By default, will use saturating mode
+    /// (i.e., uses 8-bit solution width first and falls back to 16-bit if necessary).
     pub fn solution_width(&mut self, solution_width: i32) -> &mut Self {
         self.solution_width = solution_width.to_string();
         self
     }
 
     /// Set scoring matrix. The default is an identity matrix for DNA sequences.
-    /// For more information on creating matrices, see the [Matrix](https://docs.rs/parasail-rs/latest/parasail_rs/struct.Matrix.html) struct.
-    /// Default is an identity matrix for DNA sequences.
+    /// For more information on creating matrices, see the [#Matrix] struct.
     pub fn matrix(&mut self, matrix: Matrix) -> &mut Self {
         self.matrix = Arc::new(matrix);
         self
     }
 
     /// Set gap open penalty.
-    /// Note that this should be passed as a positive integer. Default = 5.
+    /// Note that this should be passed as a positive integer. The gap open penalty
+    /// must be greater than or equal to the gap extend penalty. When a gap is
+    /// opened, the gap open penalty alone is applied. Default penalty = 5.
     pub fn gap_open(&mut self, gap_open: i32) -> &mut Self {
         self.gap_open = gap_open;
         self
     }
 
     /// Set gap extend penalty.
-    /// Note that this should be passed as a positive integer. Default = 2
+    /// Note that this should be passed as a positive integer. Default penalty = 2.
+    /// The gap extend penalty should be less than or equal to the gap open penalty.
     pub fn gap_extend(&mut self, gap_extend: i32) -> &mut Self {
         self.gap_extend = gap_extend;
         self
@@ -152,7 +163,7 @@ impl AlignerBuilder {
     /// By default, gaps are allowed at the beginning and end of the query sequence.
     /// Example:
     /// ```rust, no_run
-    /// use parasail_rs::Aligner;
+    /// use parasail_rs::prelude::Aligner;
     ///
     /// // allow gaps at the beginning of the query sequence
     /// let allow_gaps = vec![String::from("prefix")];
@@ -169,7 +180,7 @@ impl AlignerBuilder {
     /// ```rust, no_run
     /// use parasail_rs::Aligner;
     ///
-    /// // allow gaps at the beginning of the reference sequence
+    /// // allow gaps at the end of the reference sequence
     /// let allow_gaps = vec![String::from("suffix")];
     /// let aligner = Aligner::new().allow_query_gaps(allow_gaps).build();
     /// ```
@@ -178,26 +189,26 @@ impl AlignerBuilder {
         self
     }
 
-    /// Use striped vectorization method
+    /// Use striped vectorization method.
     pub fn striped(&mut self) -> &mut Self {
         self.vec_strategy = String::from("_striped");
         self
     }
 
-    /// Use scan vectorization method
+    /// Use scan vectorization method.
     pub fn scan(&mut self) -> &mut Self {
         self.vec_strategy = String::from("_scan");
         self
     }
 
-    /// Use diagonal vectorization method
+    /// Use diagonal vectorization method.
     pub fn diag(&mut self) -> &mut Self {
         self.vec_strategy = String::from("_diag");
         self
     }
 
     /// Set whether to use statistics for alignment. By default, statistics are
-    /// not used. Note that enabling stats and traceback is not supported.
+    /// not enabled. Note that enabling stats and traceback is not supported.
     /// Enabling stats will disable traceback if it is enabled.
     pub fn use_stats(&mut self) -> &mut Self {
         self.use_stats = String::from("_stats");
@@ -372,6 +383,10 @@ pub struct Aligner {
 
 impl Aligner {
     /// Create a new default aligner builder.
+    ///
+    /// The default aligner uses global alignment with an identity matrix for DNA
+    /// sequences and no gap penalties. No profile, trace, table, or stats options
+    /// are set. Vectorization strategy is set to striped by default.
     pub fn new() -> AlignerBuilder {
         AlignerBuilder::default()
     }

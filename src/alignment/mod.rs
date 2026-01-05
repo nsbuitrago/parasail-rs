@@ -1,3 +1,5 @@
+//! Alignment result handling.
+
 mod error;
 pub mod table;
 
@@ -22,8 +24,8 @@ use libparasail_sys::{
 use std::ffi::CString;
 use std::slice;
 
-use crate::aligner::alignment::table::TracebackTable;
-use crate::Result;
+use crate::alignment::table::TracebackTable;
+use crate::prelude::Result;
 pub use error::Error;
 pub use table::Table;
 

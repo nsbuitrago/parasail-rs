@@ -1,4 +1,4 @@
-use parasail_rs::{Aligner, Matrix, Profile, TraceFlags};
+use parasail_rs::prelude::{Aligner, Matrix, Profile, TraceFlags};
 use std::thread;
 
 #[test]

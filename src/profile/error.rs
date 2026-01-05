@@ -1,4 +1,4 @@
-use crate::{InstructionSet, SolutionWidth};
+use crate::prelude::{InstructionSet, SolutionWidth};
 use derive_more::From;
 use std::ffi::NulError;
 use std::fmt::{Display, Formatter};
