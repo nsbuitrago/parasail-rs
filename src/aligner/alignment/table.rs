@@ -107,7 +107,7 @@ impl<'a> Table<'a> {
     }
 }
 
-impl<'a> fmt::Display for Table<'a> {
+impl fmt::Display for Table<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Table ({}x{}):", self.rows, self.cols)?;
         for row in 0..self.rows {
@@ -299,7 +299,7 @@ impl<'a> TracebackTable<'a> {
     }
 }
 
-impl<'a> fmt::Display for TracebackTable<'a> {
+impl fmt::Display for TracebackTable<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Table ({}x{}):", self.rows, self.cols)?;
         for row in 0..self.rows {
@@ -316,7 +316,7 @@ impl<'a> fmt::Display for TracebackTable<'a> {
     }
 }
 
-impl<'a> fmt::Debug for TracebackTable<'a> {
+impl fmt::Debug for TracebackTable<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Table ({}x{}):", self.rows, self.cols)?;
         for row in 0..self.rows {

@@ -256,7 +256,7 @@ impl AlignerBuilder {
     }
 
     /// Helper function for formatting semi-global fn name with correct gap syntax.
-    fn get_allowed_gaps(&self, prefix: &str, allowed_gaps_vec: &Vec<String>) -> Vec<String> {
+    fn get_allowed_gaps(&self, prefix: &str, allowed_gaps_vec: &[String]) -> Vec<String> {
         let mut allowed_gaps = Vec::new();
 
         if !allowed_gaps_vec.is_empty() {
