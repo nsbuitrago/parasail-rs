@@ -381,7 +381,7 @@ impl Aligner {
     /// sequence. Otherwise, wrap the query sequence in a Some variant (i.e. Some(query)).
     pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> Result<Alignment> {
         let ref_len = reference.len() as i32;
-        let reference = CString::new(reference).map_err(Error::AlignInitErr)?;
+        let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
         match self.parasail_fn {
             AlignerFn::Function(f) => {
@@ -391,7 +391,7 @@ impl Aligner {
                 );
                 let query_raw = query.unwrap();
                 let query_len = query_raw.len() as i32;
-                let query = CString::new(query_raw).map_err(Error::AlignInitErr)?;
+                let query = CString::new(query_raw).map_err(Error::InteriorNulByte)?;
 
                 let result = unsafe {
                     // already checked that aligner function f is some variant during build step
@@ -441,10 +441,10 @@ impl Aligner {
     /// for aligning large sequences.
     pub fn banded_nw(&self, query: &[u8], reference: &[u8]) -> Result<Alignment> {
         let ref_len = reference.len() as i32;
-        let reference = CString::new(reference).map_err(Error::AlignInitErr)?;
+        let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
         let query_len = query.len() as i32;
-        let query = CString::new(query).map_err(Error::AlignInitErr)?;
+        let query = CString::new(query).map_err(Error::InteriorNulByte)?;
 
         let bandwidth = if let Some(bandwidth) = self.bandwidth {
             bandwidth
@@ -476,11 +476,11 @@ impl Aligner {
     /// Perform Striped Smith-Waterman local alignment using SSE2 instructions.
     pub fn ssw(&self, query: Option<&[u8]>, reference: &[u8]) -> Result<SSWResult> {
         let ref_len = reference.len() as i32;
-        let reference = CString::new(reference).map_err(Error::AlignInitErr)?;
+        let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
         let result = if let Some(query_seq) = query {
             let query_len = query_seq.len() as i32;
-            let cquery = CString::new(query_seq).map_err(Error::AlignInitErr)?;
+            let cquery = CString::new(query_seq).map_err(Error::InteriorNulByte)?;
 
             unsafe {
                 parasail_ssw(

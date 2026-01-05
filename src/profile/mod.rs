@@ -86,7 +86,7 @@ impl<'a> ProfileBuilder<'a> {
         let create_profile = self.profile_creator_lookup();
 
         let query_len = self.query.len() as c_int;
-        let query_cstring = CString::new(self.query).map_err(Error::NulError)?;
+        let query_cstring = CString::new(self.query).map_err(Error::InteriorNulByte)?;
 
         let profile = unsafe {
             create_profile(
@@ -299,7 +299,7 @@ impl Profile {
         }
 
         let query_len = query_bytes.len() as i32;
-        let query = CString::new(query_bytes).map_err(Error::NulError)?;
+        let query = CString::new(query_bytes).map_err(Error::InteriorNulByte)?;
 
         unsafe {
             match with_stats {
@@ -337,7 +337,7 @@ impl Profile {
         if query_len == 0 {
             panic!("Query sequence has length 0.");
         }
-        let query = CString::new(query_bytes).map_err(Error::NulError)?;
+        let query = CString::new(query_bytes).map_err(Error::InteriorNulByte)?;
 
         let profile = unsafe {
             let profile = parasail_ssw_init(query.as_ptr(), query_len, **matrix, score_size);

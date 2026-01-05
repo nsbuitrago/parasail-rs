@@ -44,6 +44,8 @@ All notable changes will be documented here in reverse chronological order the h
   - libc 0.2.174 -> 0.2.179
   - log 0.4.27 -> 0.4.29
   - libparasail-sys 0.1.12 -> 0.2.0
+- parasail-rs error enums moved to use derive_more.
+- Remove thiserror dep.
 
 ## 0.8.1 - 2025.08.01
 
