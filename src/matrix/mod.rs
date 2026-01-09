@@ -1,6 +1,8 @@
+//! Substitution matrices.
+
 mod error;
 
-use crate::Result;
+use crate::prelude::Result;
 pub use error::Error;
 use libparasail_sys::{
     parasail_matrix_convert_square_to_pssm, parasail_matrix_copy, parasail_matrix_create,
@@ -33,7 +35,7 @@ impl Matrix {
         assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
         assert!(!alphabet.is_empty(), "Alphabet should not be empty.");
         unsafe {
-            let alphabet = &CString::new(alphabet).map_err(Error::CreateErr)?;
+            let alphabet = &CString::new(alphabet).map_err(Error::InteriorNulByte)?;
             Ok(Self {
                 inner: parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score),
                 builtin: false,
@@ -45,16 +47,23 @@ impl Matrix {
     /// The matrix name should be one of the following:
     /// - blosum{30, 35, 40, 45, 50, 55, 60, 62, 65, 70, 75, 80, 85, 90, 95, 100}
     /// - pam{10-500} (in steps of 10, i.e., pam10, pam20, ... pam500).
+    ///
+    /// For example:
+    /// ```rust,no_run
+    /// use parasail_rs::prelude::Matrix;
+    ///
+    /// let blosum62 = Matrix::from("blosum62");
+    /// ```
     pub fn from(matrix_name: &str) -> Result<Self> {
         assert!(!matrix_name.is_empty(), "Matrix name should not be empty.");
         let matrix: *const parasail_matrix_t;
         unsafe {
-            let matrix_name = CString::new(matrix_name).map_err(Error::CreateErr)?;
+            let matrix_name = CString::new(matrix_name).map_err(Error::InteriorNulByte)?;
             matrix = parasail_matrix_lookup(matrix_name.as_ptr());
         }
 
         if matrix.is_null() {
-            return Err(Error::LookupErr(matrix_name.to_string()).into());
+            return Err(Error::FailedLookup(matrix_name.to_string()).into());
         }
 
         Ok(Self {
@@ -125,13 +134,13 @@ impl Matrix {
             return Err(Error::FileNotFound(filepath.to_str().unwrap_or("").to_string()).into());
         }
 
-        let file = CString::new(file).map_err(Error::CreateErr)?;
+        let file = CString::new(file).map_err(Error::InteriorNulByte)?;
 
         unsafe {
             let matrix = parasail_matrix_from_file(file.as_ptr());
 
             if matrix.is_null() {
-                return Err(Error::FromFileErr(filepath.to_str().unwrap_or("").to_string()).into());
+                return Err(Error::NullMatrix.into());
             }
 
             Ok(Self {
@@ -143,13 +152,13 @@ impl Matrix {
 
     /// Create a new scoring matrix from a position-specific scoring matrix.
     pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Result<Self> {
-        let alphabet = CString::new(alphabet).map_err(Error::CreateErr)?;
+        let alphabet = CString::new(alphabet).map_err(Error::InteriorNulByte)?;
 
         unsafe {
             let matrix = parasail_matrix_pssm_create(alphabet.as_ptr(), values.as_ptr(), rows);
 
             if matrix.is_null() {
-                return Err(Error::CreatePssmErr.into());
+                return Err(Error::NullMatrix.into());
             }
 
             Ok(Self {
@@ -160,12 +169,20 @@ impl Matrix {
     }
 
     /// Convert a square scoring matrix to a PSSM (position-specific scoring matrix).
+    ///
+    /// For example:
+    /// ```rust,no_run
+    /// use parasail_rs::prelude::Matrix;
+    /// let blosum62 = Matrix::from("blosum62")?;
+    /// let blosum62_pssm = blosum62.to_pssm(b"ACGT")?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn to_pssm(self, pssm_query: &[u8]) -> Result<Matrix> {
         assert!(
             !pssm_query.is_empty(),
             "PSSM query sequence should not be empty."
         );
-        let pssm_query_string = CString::new(pssm_query).map_err(Error::CreateErr)?;
+        let pssm_query_string = CString::new(pssm_query).map_err(Error::InteriorNulByte)?;
 
         unsafe {
             let matrix = parasail_matrix_copy(self.inner);
@@ -184,7 +201,7 @@ impl Matrix {
             );
 
             if converted_matrix.is_null() {
-                panic!("Error converting matrix to PSSM. Invalid query sequence.")
+                return Err(Error::NullMatrix.into());
             }
 
             Ok(Matrix {
@@ -195,6 +212,13 @@ impl Matrix {
     }
 
     /// Set value at a given row and column index for a user defined substitution matrix.
+    /// ```rust,no_run
+    /// # use parasail_rs::prelude::Matrix;
+    /// // custom matrix
+    /// let mut matrix = Matrix::create(b"ACGT", 3, -2)?;
+    /// matrix.set_value(2, 2, -1)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn set_value(&mut self, row: i32, col: i32, value: i32) -> Result<()> {
         if self.builtin {
             return Err(Error::NotBuiltIn.into());
@@ -208,7 +232,7 @@ impl Matrix {
             }
 
             if row < 0 || row > size || col < 0 || col > size {
-                return Err(Error::InvalidIndex(row, col, size).into());
+                return Err(Error::InvalidIndex(row, col).into());
             }
 
             parasail_matrix_set_value(self.inner.cast_mut(), row, col, value);

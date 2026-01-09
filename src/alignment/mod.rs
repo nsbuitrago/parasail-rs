@@ -1,4 +1,7 @@
+//! Alignment result handling.
+
 mod error;
+pub mod table;
 
 use libparasail_sys::{
     parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_matrix_t,
@@ -21,8 +24,10 @@ use libparasail_sys::{
 use std::ffi::CString;
 use std::slice;
 
-use crate::Result;
+use crate::alignment::table::TracebackTable;
+use crate::prelude::Result;
 pub use error::Error;
+pub use table::Table;
 
 /// CIGAR string for sequence alignment.
 struct CigarString {
@@ -92,37 +97,95 @@ impl Alignment {
         }
     }
 
-    /// Get score table.
-    pub fn get_score_table(&self) -> Result<i32> {
+    /// Get the score table.
+    ///
+    /// The table has dimensions (query_len, ref_len) and contains alignment scores
+    /// for all positions in the dynamic programming table.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// # use parasail_rs::prelude::Aligner;
+    /// # let query = b"ACGT";
+    /// # let reference = b"ACGT";
+    /// # let aligner = Aligner::new().use_table().build();
+    /// let result = aligner.align(Some(query), reference)?;
+    /// let table = result.get_score_table()?;
+    ///
+    /// // Access specific cell
+    /// if let Some(score) = table.get(0, 0) {
+    ///     println!("Score at (0, 0): {}", score);
+    /// }
+    ///
+    /// // Get final score
+    /// println!("Final score: {}", table.last());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn get_score_table(&self) -> Result<Table> {
         if self.is_table() || self.is_stats_table() {
-            unsafe { Ok(*parasail_result_get_score_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_score_table(self.inner);
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+                Ok(Table::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoTable(String::from("get_score_table()")))?
         }
     }
 
-    /// Get matches table.
-    pub fn get_matches_table(&self) -> Result<i32> {
+    /// Get the matches table.
+    pub fn get_matches_table(&self) -> Result<Table> {
         if self.is_stats_table() {
-            unsafe { Ok(*parasail_result_get_matches_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_matches_table(self.inner);
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+                Ok(Table::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoStatsTable(String::from("get_matches_table()")))?
         }
     }
 
-    /// Get similar table.
-    pub fn get_similar_table(&self) -> Result<i32> {
+    /// Get the similar table.
+    pub fn get_similar_table(&self) -> Result<Table> {
         if self.is_stats_table() {
-            unsafe { Ok(*parasail_result_get_similar_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_similar_table(self.inner);
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+                Ok(Table::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoStatsTable(String::from("get_similar_table()")))?
         }
     }
 
-    /// Get length table.
-    pub fn get_length_table(&self) -> Result<i32> {
+    /// Get the length table.
+    pub fn get_length_table(&self) -> Result<Table> {
         if self.is_stats_table() {
-            unsafe { Ok(*parasail_result_get_length_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_length_table(self.inner);
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+                Ok(Table::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoStatsTable(String::from("get_length_table()")))?
         }
@@ -224,10 +287,20 @@ impl Alignment {
         }
     }
 
-    /// Get trace table.
-    pub fn get_trace_table(&self) -> Result<i32> {
+    /// Get the trace table.
+    pub fn get_trace_table(&self) -> Result<TracebackTable> {
         if self.is_trace() {
-            unsafe { Ok(*parasail_result_get_trace_table(self.inner)) }
+            unsafe {
+                let table_ptr = parasail_result_get_trace_table(self.inner) as *const i8;
+                let table_size = (self.query_len * self.ref_len) as usize;
+                let data = slice::from_raw_parts(table_ptr, table_size);
+
+                Ok(TracebackTable::new(
+                    data,
+                    self.query_len as usize,
+                    self.ref_len as usize,
+                ))
+            }
         } else {
             Err(Error::NoTrace(String::from("get_trace_table()")))?
         }
@@ -275,10 +348,10 @@ impl Alignment {
         if self.is_trace() {
             let query_len = query.len() as i32;
             let ref_len = reference.len() as i32;
-            let query = CString::new(query).map_err(Error::NewCStringErr)?;
-            let reference = CString::new(reference).map_err(Error::NewCStringErr)?;
-            let match_char = CString::new("|").map_err(Error::NewCStringErr)?;
-            let mismatch_char = CString::new(" ").map_err(Error::NewCStringErr)?;
+            let query = CString::new(query).map_err(Error::InteriorNulByte)?;
+            let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
+            let match_char = CString::new("|").map_err(Error::InteriorNulByte)?;
+            let mismatch_char = CString::new(" ").map_err(Error::InteriorNulByte)?;
             unsafe {
                 let alignment = parasail_result_get_traceback(
                     self.inner,
@@ -294,13 +367,13 @@ impl Alignment {
 
                 let query_traceback = CString::from_raw((*alignment).query)
                     .into_string()
-                    .map_err(Error::CigarToStringErr)?;
+                    .map_err(Error::InvalidUTF8String)?;
                 let comparison_traceback = CString::from_raw((*alignment).comp)
                     .into_string()
-                    .map_err(Error::CigarToStringErr)?;
+                    .map_err(Error::InvalidUTF8String)?;
                 let reference_traceback = CString::from_raw((*alignment).ref_)
                     .into_string()
-                    .map_err(Error::CigarToStringErr)?;
+                    .map_err(Error::InvalidUTF8String)?;
 
                 Ok(Traceback {
                     query: query_traceback.clone(),
@@ -317,9 +390,9 @@ impl Alignment {
     pub fn get_cigar(&self, query: &[u8], reference: &[u8]) -> Result<String> {
         if self.is_trace() {
             let query_len = query.len() as i32;
-            let query = CString::new(query).map_err(Error::NewCStringErr)?;
+            let query = CString::new(query).map_err(Error::InteriorNulByte)?;
             let ref_len = reference.len() as i32;
-            let reference = CString::new(reference).map_err(Error::NewCStringErr)?;
+            let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
             let cigar: String;
             unsafe {
@@ -336,7 +409,7 @@ impl Alignment {
 
                 cigar = CString::from_raw(parasail_cigar_decode(cigar_encoded.inner))
                     .into_string()
-                    .map_err(Error::CigarToStringErr)?;
+                    .map_err(Error::InvalidUTF8String)?;
             }
 
             Ok(cigar)

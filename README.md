@@ -1,6 +1,6 @@
 # parasail-rs
 
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nsbuitrago/parasail-rs/test.yml) [![docs.rs](https://img.shields.io/docsrs/parasail-rs)](https://docs.rs/parasail-rs/latest/parasail_rs/index.html) [![Crates.io Version](https://img.shields.io/crates/v/parasail-rs)](https://crates.io/crates/parasail-rs)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nsbuitrago/parasail-rs/test.yml) [![docs.rs](https://img.shields.io/docsrs/parasail-rs)](https://docs.rs/parasail-rs/latest/parasail_rs/index.html) [![Crates.io Version](https://img.shields.io/crates/v/parasail-rs)](https://crates.io/crates/parasail-rs) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/nsbuitrago/parasail-rs)
 
 This crate provides safe Rust bindings and a wrapper to [parasail](https://github.com/jeffdaily/parasail/tree/master), a SIMD pairwise sequence alignment C library. Note that this crate is still under development and is unstable.
 
@@ -23,7 +23,7 @@ Note that parasail-rs depends on libparasail-sys which will either use an alread
 For one-off alignments:
 
 ```rust
-use parasail_rs::{Aligner};
+use parasail_rs::prelude::Aligner;
 
 // ...
 
@@ -32,12 +32,15 @@ let reference = b"ACGT";
 let aligner = Aligner::new().build();
 
 aligner.align(Some(query), reference)?;
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
-Using query profile:
+When using striped or scan vectorization strategies, some performance may
+be gained by reusing the query sequence. This can be done by creating a
+query profile and reusing it for multiple alignments.
 
 ```rust
-use parasail_rs::{Matrix, Aligner, Profile};
+use parasail_rs::prelude::{Matrix, Aligner, Profile};
 
 // ...
 
@@ -56,6 +59,7 @@ let result_2 = aligner.align(None, ref_2)?;
 
 println!("Score 1: {}", result_1.get_score());
 println!("Score 2: {}", result_2.get_score());
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 ## Contributing

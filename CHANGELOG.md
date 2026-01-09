@@ -2,6 +2,53 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.9.0 - 2026.01.04
+
+### Added
+
+- New `Table` struct providing access to alignment tables (scores, similar, length).
+  - `.get(row, col)` for bounds-checked access to individual cells.
+  - `.rows()` and `.cols()` for table dimensions.
+  - `.last()` for the last cell (typically the final alignment score).
+  - `.as_slice()` for raw data access.
+  - `Display` implementation for pretty-printing tables.
+- `TracebackTable` struct providing access to traceback table.
+  - `.get(row, col)` for bounds-checked access to individual cells returning simple flags
+    including 'DIAG', 'INS', and 'DEL'.
+  - `.get_detailed(row, col)` for bounds-checked access to individual cells returning all
+    parasail flags (such as 'INS_E`, 'DEL_F', etc.)
+  - `.rows()` and `.cols()` for table dimensions.
+  - `.as_slice()` for raw data access.
+  - `fmt::Display` implementation for pretty-printing tables with simple flags, and
+    `fmt::Debug` implementation for printing detailed parasail flags. 
+- `bitflags` dependency for ergonmic TraceFlags generation.
+- Submodules are now public (`aligner`, `matrix`, `profile`, etc.)
+- A `prelude` module for cleaner imports (`Matrix`, `Aligner`, `Alignment`, etc.)
+
+### Breaking Changes
+
+- Fixed table getter methods to return full tables instead of raw pointer:
+  - `get_score_table()` now returns `Result<Table>` instead of `Result<i32>`
+  - `get_matches_table()` now returns `Result<Table>` instead of `Result<i32>`
+  - `get_similar_table()` now returns `Result<Table>` instead of `Result<i32>`
+  - `get_length_table()` now returns `Result<Table>` instead of `Result<i32>`
+  - `get_trace_table()` now returns `Result<TracebackTable>` instead of `Result<i32>`
+
+### Fix
+
+- Properly expose `AlignerBuilder`, `Alignment`, and `Traceback` structs.
+
+### Update
+
+- bump deps:
+  - thiserror 2.0.12 -> 2.0.17
+  - derive_more 2.0.1 -> 2.1.1
+  - libc 0.2.174 -> 0.2.179
+  - log 0.4.27 -> 0.4.29
+  - libparasail-sys 0.1.12 -> 0.2.0
+- parasail-rs error enums moved to use derive_more.
+- Remove thiserror dep.
+
 ## 0.8.1 - 2025.08.01
 
 ### Fix

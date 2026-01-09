@@ -1,4 +1,4 @@
-use crate::{InstructionSet, SolutionWidth};
+use crate::prelude::{InstructionSet, SolutionWidth};
 use derive_more::From;
 use std::ffi::NulError;
 use std::fmt::{Display, Formatter};
@@ -6,8 +6,6 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug, From)]
 pub enum Error {
     QueryIsEmpty,
-    // #[error("Error creating profile: {0}")]
-    // CreateErr(#[from] NulError),
     ProfileFnLookupFailed {
         use_stats: bool,
         instruction_set: InstructionSet,
@@ -15,7 +13,7 @@ pub enum Error {
     },
     NullProfile,
     #[from]
-    NulError(NulError),
+    InteriorNulByte(NulError),
 }
 
 impl Display for Error {

@@ -1,14 +1,19 @@
 use derive_more::From;
-use std::ffi::NulError;
+use std::ffi::{IntoStringError, NulError};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, From)]
 pub enum Error {
+    NoStats(String),
+    NoTable(String),
+    NoStatsTable(String),
+    NoRowCol(String),
+    NoTrace(String),
+    #[from]
+    InvalidUTF8String(IntoStringError),
     #[from]
     InteriorNulByte(NulError),
     NoBandwidth,
-    #[from]
-    Alignment(crate::alignment::Error),
 }
 
 impl Display for Error {

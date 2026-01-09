@@ -1,4 +1,4 @@
-use parasail_rs::{Aligner, Matrix, Profile};
+use parasail_rs::prelude::{Aligner, Matrix, Profile, TraceFlags};
 use std::thread;
 
 #[test]
@@ -258,13 +258,17 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().striped().build();
-    let default_score = 1;
 
     let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(!result.is_stats());
     assert!(!result.is_stats_table());
-    assert_eq!(result.get_score_table()?, default_score);
+
+    let table = result.get_score_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+    assert_eq!(table.last(), query.len() as i32);
+    assert!(table.get(0, 0).is_some());
 
     // one-off alignment with stats
     let aligner = Aligner::new().use_stats().use_table().striped().build();
@@ -273,7 +277,11 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_stats());
     assert!(result.is_stats_table());
     assert!(result.is_table());
-    assert_eq!(result.get_score_table()?, default_score);
+
+    let table = result.get_score_table()?;
+    println!("{}", table);
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
 
     // alignment with profile, without stats
     let custom_score = 3;
@@ -291,9 +299,11 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result_w_profile.is_table());
     assert!(!result_w_profile.is_stats());
     assert!(!result_w_profile.is_stats_table());
-    assert_eq!(result_w_profile.get_score_table()?, custom_score);
 
-    // // alignment with profile, with stats
+    let table = result_w_profile.get_score_table()?;
+    assert_eq!(table.last(), query.len() as i32 * custom_score);
+
+    // alignment with profile, with stats
     let profile = Profile::new(query, true, &matrix)?;
     let aligner_w_profile = Aligner::new()
         .profile(profile)
@@ -307,31 +317,35 @@ pub fn score_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result_w_profile.is_stats());
     assert!(result_w_profile.is_stats_table());
     assert!(result_w_profile.is_table());
-    assert_eq!(result_w_profile.get_score_table()?, custom_score);
+
+    let table = result_w_profile.get_score_table()?;
+    assert_eq!(table.last(), query.len() as i32 * custom_score);
 
     Ok(())
 }
 
 #[test]
 pub fn matches_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment without stats
     let query = b"ACGT";
-    let reference = b"ACGT";
+    let reference = b"ACGTT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
-    let default_score = 1;
 
     let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
-    assert_eq!(result.get_matches_table()?, default_score);
+
+    let table = result.get_matches_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+    assert_eq!(table.last(), query.len() as i32);
+    println!("Matches table:\n{}", table);
 
     Ok(())
 }
 
 #[test]
 pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment without stats
     let query = b"ACGT";
     let reference = b"ACGT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
@@ -340,23 +354,30 @@ pub fn similar_table() -> Result<(), Box<dyn std::error::Error>> {
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
-    println!("similar table: {:?}", result.get_similar_table()?);
+
+    let table = result.get_similar_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+    println!("Similar table:\n{}", table);
 
     Ok(())
 }
 
 #[test]
 pub fn length_table() -> Result<(), Box<dyn std::error::Error>> {
-    // one-off alignment without stats
     let query = b"ACGT";
-    let reference = b"ACGT";
+    let reference = b"ACGTTT";
     let aligner = Aligner::new().use_table().use_stats().striped().build();
 
     let result = aligner.align(Some(query), reference)?;
     assert!(result.is_table());
     assert!(result.is_stats());
     assert!(result.is_stats_table());
-    println!("Length table: {:?}", result.get_length_table()?);
+
+    let table = result.get_length_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+    println!("Length table:\n{}", table);
 
     Ok(())
 }
@@ -528,7 +549,30 @@ pub fn trace_table() -> Result<(), Box<dyn std::error::Error>> {
     let aligner = Aligner::new().use_trace().striped().build();
     let result = aligner.align(Some(query), reference)?;
     assert!(result.is_trace());
-    println!("Trace table: {:?}", result.get_trace_table()?);
+
+    let table = result.get_trace_table()?;
+    assert_eq!(table.rows(), query.len());
+    assert_eq!(table.cols(), reference.len());
+    assert_eq!(table.as_slice().len(), 16);
+
+    // Verify that we can access all table cells
+    for row in 0..table.rows() {
+        for col in 0..table.cols() {
+            let flags = table
+                .get(row, col)
+                .expect(&format!("Should have flags at ({}, {})", row, col));
+            // Flags should be valid (not empty or out of range)
+            assert!(
+                !flags.is_empty() || flags == TraceFlags::ZERO,
+                "Cell ({}, {}) has unexpected flags: {:?}",
+                row,
+                col,
+                flags
+            );
+        }
+    }
+
+    println!("Trace table:\n{}", table);
 
     Ok(())
 }
