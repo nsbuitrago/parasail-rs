@@ -173,8 +173,9 @@ impl Matrix {
     /// For example:
     /// ```rust,no_run
     /// use parasail_rs::prelude::Matrix;
-    /// let blosum62 = Matrix::from("blosum62");
-    /// let blosum62_pssm = blosum62.to_pssm(b"ACGT");
+    /// let blosum62 = Matrix::from("blosum62")?;
+    /// let blosum62_pssm = blosum62.to_pssm(b"ACGT")?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn to_pssm(self, pssm_query: &[u8]) -> Result<Matrix> {
         assert!(
@@ -212,9 +213,11 @@ impl Matrix {
 
     /// Set value at a given row and column index for a user defined substitution matrix.
     /// ```rust,no_run
+    /// # use parasail_rs::prelude::Matrix;
     /// // custom matrix
     /// let mut matrix = Matrix::create(b"ACGT", 3, -2)?;
     /// matrix.set_value(2, 2, -1)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn set_value(&mut self, row: i32, col: i32, value: i32) -> Result<()> {
         if self.builtin {

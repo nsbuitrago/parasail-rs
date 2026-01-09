@@ -10,7 +10,7 @@ use std::fmt::{self, Display};
 ///
 /// # Example
 /// ```rust,no_run
-/// use parasail_rs::Aligner;
+/// use parasail_rs::prelude::Aligner;
 ///
 /// let query = b"ACGT";
 /// let reference = b"ACGT";
@@ -64,7 +64,7 @@ impl<'a> Table<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use parasail_rs::Aligner;
+    /// # use parasail_rs::prelude::Aligner;
     /// # let query = b"ACGT";
     /// # let reference = b"ACGT";
     /// # let aligner = Aligner::new().use_table().build();
@@ -178,7 +178,7 @@ impl Display for TraceFlags {
 ///
 /// # Example
 /// ```rust,no_run
-/// use parasail_rs::Aligner;
+/// use parasail_rs::prelude::Aligner;
 ///
 /// let query = b"ACGT";
 /// let reference = b"ACGT";
@@ -228,7 +228,7 @@ impl<'a> TracebackTable<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use parasail_rs::Aligner;
+    /// # use parasail_rs::prelude::Aligner;
     /// # let query = b"ACGT";
     /// # let reference = b"ACGT";
     /// # let aligner = Aligner::new().use_table().build();
@@ -259,7 +259,7 @@ impl<'a> TracebackTable<'a> {
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use parasail_rs::Aligner;
+    /// # use parasail_rs::prelude::Aligner;
     /// # let query = b"ACGT";
     /// # let reference = b"ACGT";
     /// # let aligner = Aligner::new().use_table().build();

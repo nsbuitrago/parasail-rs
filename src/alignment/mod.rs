@@ -104,7 +104,7 @@ impl Alignment {
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use parasail_rs::Aligner;
+    /// # use parasail_rs::prelude::Aligner;
     /// # let query = b"ACGT";
     /// # let reference = b"ACGT";
     /// # let aligner = Aligner::new().use_table().build();

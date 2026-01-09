@@ -178,7 +178,7 @@ impl AlignerBuilder {
     /// By default, gaps are allowed at the beginning and end of the reference sequence.
     /// Example:
     /// ```rust, no_run
-    /// use parasail_rs::Aligner;
+    /// use parasail_rs::prelude::Aligner;
     ///
     /// // allow gaps at the end of the reference sequence
     /// let allow_gaps = vec![String::from("suffix")];

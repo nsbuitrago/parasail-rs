@@ -32,6 +32,7 @@ let reference = b"ACGT";
 let aligner = Aligner::new().build();
 
 aligner.align(Some(query), reference)?;
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 When using striped or scan vectorization strategies, some performance may
@@ -58,6 +59,7 @@ let result_2 = aligner.align(None, ref_2)?;
 
 println!("Score 1: {}", result_1.get_score());
 println!("Score 2: {}", result_2.get_score());
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 ## Contributing
