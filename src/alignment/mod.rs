@@ -120,7 +120,7 @@ impl Alignment {
     /// println!("Final score: {}", table.last());
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
-    pub fn get_score_table(&self) -> Result<Table> {
+    pub fn get_score_table(&self) -> Result<Table<'_>> {
         if self.is_table() || self.is_stats_table() {
             unsafe {
                 let table_ptr = parasail_result_get_score_table(self.inner);
@@ -138,7 +138,7 @@ impl Alignment {
     }
 
     /// Get the matches table.
-    pub fn get_matches_table(&self) -> Result<Table> {
+    pub fn get_matches_table(&self) -> Result<Table<'_>> {
         if self.is_stats_table() {
             unsafe {
                 let table_ptr = parasail_result_get_matches_table(self.inner);
@@ -156,7 +156,7 @@ impl Alignment {
     }
 
     /// Get the similar table.
-    pub fn get_similar_table(&self) -> Result<Table> {
+    pub fn get_similar_table(&self) -> Result<Table<'_>> {
         if self.is_stats_table() {
             unsafe {
                 let table_ptr = parasail_result_get_similar_table(self.inner);
@@ -174,7 +174,7 @@ impl Alignment {
     }
 
     /// Get the length table.
-    pub fn get_length_table(&self) -> Result<Table> {
+    pub fn get_length_table(&self) -> Result<Table<'_>> {
         if self.is_stats_table() {
             unsafe {
                 let table_ptr = parasail_result_get_length_table(self.inner);
@@ -288,7 +288,7 @@ impl Alignment {
     }
 
     /// Get the trace table.
-    pub fn get_trace_table(&self) -> Result<TracebackTable> {
+    pub fn get_trace_table(&self) -> Result<TracebackTable<'_>> {
         if self.is_trace() {
             unsafe {
                 let table_ptr = parasail_result_get_trace_table(self.inner) as *const i8;
