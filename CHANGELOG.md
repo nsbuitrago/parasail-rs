@@ -2,6 +2,20 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.9.1 - 2026.05.06
+
+## Fix
+
+- Use `Table<'_>` and `TracebackTable<'_>` in return types for clearer lifetime annotations.
+
+### Update
+
+Bumped
+- libc 0.2.179 -> 0.2.186
+- libparasail-sys 0.2.0 -> 0.2.1
+- bitflags 2.10.0 -> 2.11.1
+
+
 ## 0.9.0 - 2026.01.04
 
 ### Added
