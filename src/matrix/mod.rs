@@ -32,14 +32,29 @@ impl Matrix {
     /// Note that match score should be a positive integer, while mismatch score
     /// should be a negative integer.
     pub fn create(alphabet: &[u8], match_score: i32, mismatch_score: i32) -> Result<Self> {
-        assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
-        assert!(!alphabet.is_empty(), "Alphabet should not be empty.");
+        if alphabet.is_empty() {
+            return Err(Error::EmptyAlphabet.into());
+        }
+
+        if match_score < 0 || mismatch_score > 0 {
+            return Err(Error::InvalidScores {
+                match_score,
+                mismatch_score,
+            }
+            .into());
+        }
+
         unsafe {
             let alphabet = &CString::new(alphabet).map_err(Error::InteriorNulByte)?;
-            Ok(Self {
-                inner: parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score),
-                builtin: false,
-            })
+            let inner = parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score);
+            if inner.is_null() {
+                Err(Error::NullMatrix.into())
+            } else {
+                Ok(Self {
+                    inner,
+                    builtin: false,
+                })
+            }
         }
     }
 
@@ -55,7 +70,10 @@ impl Matrix {
     /// let blosum62 = Matrix::from("blosum62");
     /// ```
     pub fn from(matrix_name: &str) -> Result<Self> {
-        assert!(!matrix_name.is_empty(), "Matrix name should not be empty.");
+        if matrix_name.is_empty() {
+            return Err(Error::EmptyMatrixName.into());
+        }
+
         let matrix: *const parasail_matrix_t;
         unsafe {
             let matrix_name = CString::new(matrix_name).map_err(Error::InteriorNulByte)?;
@@ -144,7 +162,7 @@ impl Matrix {
             }
 
             Ok(Self {
-                inner: parasail_matrix_from_file(file.as_ptr()),
+                inner: matrix,
                 builtin: false,
             })
         }
@@ -152,6 +170,33 @@ impl Matrix {
 
     /// Create a new scoring matrix from a position-specific scoring matrix.
     pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Result<Self> {
+        if alphabet.is_empty() {
+            return Err(Error::EmptyPSSMAlphabet.into());
+        }
+
+        let rows_usize = usize::try_from(rows).map_err(|_| Error::InvalidPSSMRows(rows))?;
+        if rows_usize == 0 {
+            return Err(Error::InvalidPSSMRows(rows).into());
+        }
+
+        let expected = alphabet
+            .len()
+            .checked_mul(rows_usize)
+            .ok_or(Error::PSSMTooLarge {
+                alphabet_len: alphabet.len(),
+                rows,
+            })?;
+
+        if values.len() != expected {
+            return Err(Error::InvalidPSSMValues {
+                alphabet_len: alphabet.len(),
+                rows,
+                expected,
+                actual: values.len(),
+            }
+            .into());
+        }
+
         let alphabet = CString::new(alphabet).map_err(Error::InteriorNulByte)?;
 
         unsafe {
@@ -178,26 +223,25 @@ impl Matrix {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn to_pssm(self, pssm_query: &[u8]) -> Result<Matrix> {
-        assert!(
-            !pssm_query.is_empty(),
-            "PSSM query sequence should not be empty."
-        );
+        if pssm_query.is_empty() {
+            return Err(Error::EmptyPSSMQuery.into());
+        }
+
+        if unsafe { (*self.inner).type_ } != 0 {
+            return Err(Error::NotSquare.into());
+        }
+
         let pssm_query_string = CString::new(pssm_query).map_err(Error::InteriorNulByte)?;
+        let pssm_query_len =
+            i32::try_from(pssm_query.len()).map_err(|_| Error::PSSMQueryTooLong {
+                length: pssm_query.len(),
+            })?;
 
         unsafe {
-            let matrix = parasail_matrix_copy(self.inner);
-            if matrix.is_null() {
-                return Err(Error::NullMatrix.into());
-            }
-
-            if (*self.inner).type_ != 0 {
-                return Err(Error::NotSquare.into());
-            }
-
             let converted_matrix = parasail_matrix_convert_square_to_pssm(
-                matrix,
+                self.inner,
                 pssm_query_string.as_ptr(),
-                pssm_query.len() as i32,
+                pssm_query_len,
             );
 
             if converted_matrix.is_null() {
@@ -206,7 +250,7 @@ impl Matrix {
 
             Ok(Matrix {
                 inner: converted_matrix,
-                builtin: self.builtin,
+                builtin: false,
             })
         }
     }
@@ -239,6 +283,18 @@ impl Matrix {
         }
 
         Ok(())
+    }
+
+    pub(crate) fn try_clone(&self) -> Result<Self> {
+        let parasail_matrix_copy = unsafe { parasail_matrix_copy(**self) };
+        if parasail_matrix_copy.is_null() {
+            Err(Error::NullMatrix.into())
+        } else {
+            Ok(Self {
+                inner: parasail_matrix_copy,
+                builtin: false,
+            })
+        }
     }
 }
 
@@ -278,18 +334,8 @@ impl Deref for Matrix {
 #[doc(hidden)]
 impl Clone for Matrix {
     fn clone(&self) -> Self {
-        let parasail_matrix_copy = unsafe { parasail_matrix_copy(**self) };
-        if self.builtin {
-            Self {
-                inner: parasail_matrix_copy as *const parasail_matrix_t,
-                builtin: false, // for consistency with C interface
-            }
-        } else {
-            Self {
-                inner: parasail_matrix_copy,
-                builtin: false,
-            }
-        }
+        self.try_clone()
+            .expect("Parasail failed to copy the matrix")
     }
 }
 

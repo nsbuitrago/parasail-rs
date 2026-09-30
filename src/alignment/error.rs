@@ -14,6 +14,10 @@ pub enum Error {
     #[from]
     InteriorNulByte(NulError),
     NoBandwidth,
+    NullCigar,
+    SeqTooLong {
+        length: usize,
+    },
 }
 
 impl Display for Error {

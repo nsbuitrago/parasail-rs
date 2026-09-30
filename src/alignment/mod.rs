@@ -4,14 +4,13 @@ mod error;
 pub mod table;
 
 use libparasail_sys::{
-    parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_matrix_t,
-    parasail_result_free, parasail_result_get_cigar, parasail_result_get_end_query,
-    parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_length_col,
-    parasail_result_get_length_row, parasail_result_get_length_table, parasail_result_get_matches,
-    parasail_result_get_matches_col, parasail_result_get_matches_row,
-    parasail_result_get_matches_table, parasail_result_get_score, parasail_result_get_score_col,
-    parasail_result_get_score_row, parasail_result_get_score_table, parasail_result_get_similar,
-    parasail_result_get_similar_col, parasail_result_get_similar_row,
+    parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_result_free,
+    parasail_result_get_cigar, parasail_result_get_end_query, parasail_result_get_end_ref,
+    parasail_result_get_length, parasail_result_get_length_col, parasail_result_get_length_row,
+    parasail_result_get_length_table, parasail_result_get_matches, parasail_result_get_matches_col,
+    parasail_result_get_matches_row, parasail_result_get_matches_table, parasail_result_get_score,
+    parasail_result_get_score_col, parasail_result_get_score_row, parasail_result_get_score_table,
+    parasail_result_get_similar, parasail_result_get_similar_col, parasail_result_get_similar_row,
     parasail_result_get_similar_table, parasail_result_get_trace_table,
     parasail_result_get_traceback, parasail_result_is_banded, parasail_result_is_blocked,
     parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol,
@@ -23,8 +22,10 @@ use libparasail_sys::{
 };
 use std::ffi::{CStr, CString};
 use std::slice;
+use std::sync::Arc;
 
 use crate::alignment::table::TracebackTable;
+use crate::matrix::Matrix;
 use crate::prelude::Result;
 pub use error::Error;
 pub use table::Table;
@@ -54,7 +55,7 @@ pub struct Traceback {
 #[derive(Debug, Clone)]
 pub struct Alignment {
     pub(crate) inner: *mut parasail_result_t,
-    pub(crate) matrix: *const parasail_matrix_t,
+    pub(crate) matrix: Arc<Matrix>,
     pub(crate) query_len: i32,
     pub(crate) ref_len: i32,
 }
@@ -309,8 +310,13 @@ impl Alignment {
     /// Get alignment strings and statistics
     pub fn print_traceback(&self, query: &[u8], reference: &[u8]) {
         if self.is_trace() {
-            let query_len = query.len() as i32;
-            let ref_len = reference.len() as i32;
+            let (Ok(query_len), Ok(ref_len)) = (
+                convert_seq_len_to_i32(query.len()),
+                convert_seq_len_to_i32(reference.len()),
+            ) else {
+                eprintln!("Cannot print traceback: sequence length exceeds i32::MAX.");
+                return;
+            };
             let query = CString::new(query).unwrap();
             let reference = CString::new(reference).unwrap();
             let query_str = CString::new("Query:").unwrap();
@@ -328,7 +334,7 @@ impl Alignment {
                     ref_len,
                     query_str.as_ptr(),
                     ref_str.as_ptr(),
-                    self.matrix,
+                    self.matrix.inner,
                     self.inner,
                     *match_char.as_ptr(),
                     *mismatch_char.as_ptr(),
@@ -346,8 +352,8 @@ impl Alignment {
     /// Get alignment strings.
     pub fn get_traceback_strings(&self, query: &[u8], reference: &[u8]) -> Result<Traceback> {
         if self.is_trace() {
-            let query_len = query.len() as i32;
-            let ref_len = reference.len() as i32;
+            let query_len = convert_seq_len_to_i32(query.len())?;
+            let ref_len = convert_seq_len_to_i32(reference.len())?;
             let query = CString::new(query).map_err(Error::InteriorNulByte)?;
             let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
             let match_char = CString::new("|").map_err(Error::InteriorNulByte)?;
@@ -359,7 +365,7 @@ impl Alignment {
                     query_len,
                     reference.as_ptr(),
                     ref_len,
-                    self.matrix,
+                    self.matrix.inner,
                     *match_char.as_ptr(),
                     *mismatch_char.as_ptr(),
                     *mismatch_char.as_ptr(),
@@ -394,30 +400,43 @@ impl Alignment {
     /// Get CIGAR string.
     pub fn get_cigar(&self, query: &[u8], reference: &[u8]) -> Result<String> {
         if self.is_trace() {
-            let query_len = query.len() as i32;
+            let query_len = convert_seq_len_to_i32(query.len())?;
             let query = CString::new(query).map_err(Error::InteriorNulByte)?;
-            let ref_len = reference.len() as i32;
+            let ref_len = convert_seq_len_to_i32(reference.len())?;
             let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
-            let cigar: String;
             unsafe {
+                let cigar_encoded = parasail_result_get_cigar(
+                    self.inner,
+                    query.as_ptr(),
+                    query_len,
+                    reference.as_ptr(),
+                    ref_len,
+                    self.matrix.inner,
+                );
+                if cigar_encoded.is_null() {
+                    return Err(Error::NullCigar.into());
+                }
+
                 let cigar_encoded = CigarString {
-                    inner: parasail_result_get_cigar(
-                        self.inner,
-                        query.as_ptr(),
-                        query_len,
-                        reference.as_ptr(),
-                        ref_len,
-                        self.matrix,
-                    ),
+                    inner: cigar_encoded,
                 };
 
-                cigar = CString::from_raw(parasail_cigar_decode(cigar_encoded.inner))
-                    .into_string()
-                    .map_err(Error::InvalidUTF8String)?;
-            }
+                let cigar_decoded = parasail_cigar_decode(cigar_encoded.inner);
+                if cigar_decoded.is_null() {
+                    return Err(Error::NullCigar.into());
+                }
 
-            Ok(cigar)
+                let cigar = CStr::from_ptr(cigar_decoded)
+                    .to_owned()
+                    .into_string()
+                    .map_err(Error::InvalidUTF8String);
+
+                // Free the decoded string with the C allocator that created it.
+                libc::free(cigar_decoded.cast());
+
+                Ok(cigar?)
+            }
         } else {
             Err(Error::NoTrace(String::from("get_cigar()")).into())
         }
@@ -497,6 +516,11 @@ impl Alignment {
     pub fn is_trace(&self) -> bool {
         unsafe { parasail_result_is_trace(self.inner) != 0 }
     }
+}
+
+#[inline]
+fn convert_seq_len_to_i32(length: usize) -> Result<i32> {
+    i32::try_from(length).map_err(|_| Error::SeqTooLong { length }.into())
 }
 
 #[doc(hidden)]

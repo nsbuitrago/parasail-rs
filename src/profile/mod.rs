@@ -33,6 +33,7 @@ use libparasail_sys::{
 use std::ffi::{c_int, CString};
 use std::ops::Deref;
 use std::os::raw::c_char;
+use std::sync::Arc;
 
 use crate::prelude::{InstructionSet, Matrix, Result, SolutionWidth};
 
@@ -87,16 +88,11 @@ impl<'a> ProfileBuilder<'a> {
     pub fn build(&self) -> Result<Profile> {
         let create_profile = self.profile_creator_lookup();
 
-        let query_len = self.query.len() as c_int;
+        let query_len = convert_query_len_to_i32(self.query.len())?;
         let query_cstring = CString::new(self.query).map_err(Error::InteriorNulByte)?;
+        let matrix = Arc::new(self.matrix.try_clone()?);
 
-        let profile = unsafe {
-            create_profile(
-                query_cstring.as_ptr(),
-                self.query.len() as c_int,
-                self.matrix.inner,
-            )
-        };
+        let profile = unsafe { create_profile(query_cstring.as_ptr(), query_len, matrix.inner) };
 
         if profile.is_null() {
             return Err(Error::NullProfile.into());
@@ -104,6 +100,8 @@ impl<'a> ProfileBuilder<'a> {
 
         Ok(Profile {
             inner: profile,
+            matrix: Some(matrix),
+            _query: Some(query_cstring),
             use_stats: self.use_stats,
             query_len,
         })
@@ -280,6 +278,9 @@ impl<'a> ProfileBuilder<'a> {
 /// Query profile for sequence alignment
 pub struct Profile {
     pub(crate) inner: *mut parasail_profile_t,
+    // Parasail retains both pointers in `inner`, so they must outlive it.
+    pub(crate) matrix: Option<Arc<Matrix>>,
+    _query: Option<CString>,
     pub(crate) use_stats: bool,
     pub(crate) query_len: i32,
 }
@@ -300,49 +301,41 @@ impl Profile {
             return Err(Error::QueryIsEmpty.into());
         }
 
-        let query_len = query_bytes.len() as i32;
+        let query_len = convert_query_len_to_i32(query_bytes.len())?;
         let query = CString::new(query_bytes).map_err(Error::InteriorNulByte)?;
+        let matrix = Arc::new(matrix.try_clone()?);
 
-        unsafe {
-            match with_stats {
-                true => {
-                    let profile =
-                        parasail_profile_create_stats_sat(query.as_ptr(), query_len, **matrix);
-                    if profile.is_null() {
-                        return Err(Error::NullProfile.into());
-                    }
-
-                    Ok(Profile {
-                        inner: profile,
-                        use_stats: true,
-                        query_len,
-                    })
-                }
-                false => {
-                    let profile = parasail_profile_create_sat(query.as_ptr(), query_len, **matrix);
-                    if profile.is_null() {
-                        return Err(Error::NullProfile.into());
-                    }
-
-                    Ok(Profile {
-                        inner: profile,
-                        use_stats: false,
-                        query_len,
-                    })
-                }
+        let profile = unsafe {
+            if with_stats {
+                parasail_profile_create_stats_sat(query.as_ptr(), query_len, matrix.inner)
+            } else {
+                parasail_profile_create_sat(query.as_ptr(), query_len, matrix.inner)
             }
+        };
+
+        if profile.is_null() {
+            return Err(Error::NullProfile.into());
         }
+
+        Ok(Profile {
+            inner: profile,
+            matrix: Some(matrix),
+            _query: Some(query),
+            use_stats: with_stats,
+            query_len,
+        })
     }
 
     pub fn new_ssw(query_bytes: &[u8], matrix: &Matrix, score_size: i8) -> Result<Self> {
-        let query_len = query_bytes.len() as i32;
-        if query_len == 0 {
-            panic!("Query sequence has length 0.");
+        if query_bytes.is_empty() {
+            return Err(Error::QueryIsEmpty.into());
         }
+        let query_len = convert_query_len_to_i32(query_bytes.len())?;
         let query = CString::new(query_bytes).map_err(Error::InteriorNulByte)?;
+        let matrix = Arc::new(matrix.try_clone()?);
 
         let profile = unsafe {
-            let profile = parasail_ssw_init(query.as_ptr(), query_len, **matrix, score_size);
+            let profile = parasail_ssw_init(query.as_ptr(), query_len, matrix.inner, score_size);
 
             if profile.is_null() {
                 return Err(Error::NullProfile.into());
@@ -352,10 +345,17 @@ impl Profile {
 
         Ok(Profile {
             inner: profile,
+            matrix: Some(matrix),
+            _query: Some(query),
             use_stats: true,
             query_len,
         })
     }
+}
+
+#[inline]
+fn convert_query_len_to_i32(length: usize) -> Result<c_int> {
+    i32::try_from(length).map_err(|_| Error::QueryTooLong { length }.into())
 }
 
 /// Default profile is a null pointer
@@ -366,6 +366,8 @@ impl Default for Profile {
     fn default() -> Self {
         Profile {
             inner: std::ptr::null_mut(),
+            matrix: None,
+            _query: None,
             use_stats: false,
             query_len: 0,
         }

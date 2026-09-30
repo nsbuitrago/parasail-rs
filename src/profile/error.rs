@@ -12,6 +12,9 @@ pub enum Error {
         solution_width: SolutionWidth,
     },
     NullProfile,
+    QueryTooLong {
+        length: usize,
+    },
     #[from]
     InteriorNulByte(NulError),
 }

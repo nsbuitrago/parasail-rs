@@ -4,9 +4,15 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug, From)]
 pub enum Error {
+    SeqTooLong {
+        length: usize,
+    },
     #[from]
     InteriorNulByte(NulError),
     NoBandwidth,
+    MissingProfileMatrix,
+    NullAlignmentResult,
+    NullSSWResult,
     #[from]
     Alignment(crate::alignment::Error),
 }

@@ -16,7 +16,7 @@ pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
     let blosum62 = Matrix::from("blosum62")?;
 
     // convert to PSSM
-    let _blosum62_pssm = blosum62.to_pssm(b"ACGT");
+    let _blosum62_pssm = blosum62.to_pssm(b"ACGT")?;
 
     // square matrix from file
     Matrix::from_file("./tests/square.txt")?;
@@ -26,11 +26,98 @@ pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
 
     // PSSM
     let pssm_alphabet = "abcdef";
-    let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
+    let values = vec![1; 12];
     let rows = 2;
     Matrix::create_pssm(pssm_alphabet, values, rows)?;
 
     Ok(())
+}
+
+#[test]
+pub fn matrix_construction_rejects_invalid_input() {
+    use parasail_rs::error::Error as ParasailError;
+    use parasail_rs::matrix::Error as MatrixError;
+
+    assert!(matches!(
+        Matrix::create(b"", 1, -1),
+        Err(ParasailError::Matrix(MatrixError::EmptyAlphabet))
+    ));
+    assert!(matches!(
+        Matrix::create(b"ACGT", -1, -1),
+        Err(ParasailError::Matrix(MatrixError::InvalidScores {
+            match_score: -1,
+            mismatch_score: -1,
+        }))
+    ));
+    assert!(matches!(
+        Matrix::create(b"ACGT", 1, 1),
+        Err(ParasailError::Matrix(MatrixError::InvalidScores {
+            match_score: 1,
+            mismatch_score: 1,
+        }))
+    ));
+    assert!(matches!(
+        Matrix::from(""),
+        Err(ParasailError::Matrix(MatrixError::EmptyMatrixName))
+    ));
+}
+
+#[test]
+pub fn pssm_construction_rejects_invalid_dimensions() {
+    use parasail_rs::error::Error as ParasailError;
+    use parasail_rs::matrix::Error as MatrixError;
+
+    let short_values = Matrix::create_pssm("abcdef", vec![1; 8], 2);
+    assert!(matches!(
+        short_values,
+        Err(ParasailError::Matrix(MatrixError::InvalidPSSMValues {
+            alphabet_len: 6,
+            rows: 2,
+            expected: 12,
+            actual: 8,
+        }))
+    ));
+
+    let long_values = Matrix::create_pssm("abcdef", vec![1; 13], 2);
+    assert!(matches!(
+        long_values,
+        Err(ParasailError::Matrix(MatrixError::InvalidPSSMValues {
+            alphabet_len: 6,
+            rows: 2,
+            expected: 12,
+            actual: 13,
+        }))
+    ));
+
+    assert!(matches!(
+        Matrix::create_pssm("", vec![], 1),
+        Err(ParasailError::Matrix(MatrixError::EmptyPSSMAlphabet))
+    ));
+    assert!(matches!(
+        Matrix::create_pssm("A", vec![], 0),
+        Err(ParasailError::Matrix(MatrixError::InvalidPSSMRows(0)))
+    ));
+    assert!(matches!(
+        Matrix::create_pssm("A", vec![], -1),
+        Err(ParasailError::Matrix(MatrixError::InvalidPSSMRows(-1)))
+    ));
+}
+
+#[test]
+pub fn pssm_conversion_validates_input() {
+    use parasail_rs::error::Error as ParasailError;
+    use parasail_rs::matrix::Error as MatrixError;
+
+    assert!(matches!(
+        Matrix::default().to_pssm(b""),
+        Err(ParasailError::Matrix(MatrixError::EmptyPSSMQuery))
+    ));
+
+    let pssm = Matrix::from("blosum62").unwrap().to_pssm(b"ACGT").unwrap();
+    assert!(matches!(
+        pssm.to_pssm(b"ACGT"),
+        Err(ParasailError::Matrix(MatrixError::NotSquare))
+    ));
 }
 
 #[test]
@@ -610,6 +697,7 @@ pub fn get_cigar() -> Result<(), Box<dyn std::error::Error>> {
     let result = aligner.align(Some(query), reference)?;
     let cigar_string = result.get_cigar(query, reference)?;
 
+    assert_eq!(cigar_string, "4=".to_string());
     println!("CIGAR: {}", cigar_string);
 
     Ok(())
@@ -683,6 +771,29 @@ pub fn local_with_profile() -> Result<(), Box<dyn std::error::Error>> {
     assert!(!result.is_global());
     assert!(!result.is_semi_global());
 
+    Ok(())
+}
+
+#[test]
+pub fn temp_matrix_with_profile() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let ref_1 = b"ACGTAACGTACA";
+    let ref_2 = b"TGGCAAGGTAGA";
+
+    let use_stats = true;
+    let query_profile = Profile::new(query, use_stats, &Matrix::default())?;
+    let aligner = Aligner::new().profile(query_profile).build();
+
+    let result_1 = aligner.align(None, ref_1)?;
+    let result_2 = aligner.align(None, ref_2)?;
+
+    assert!(result_1.is_global());
+    assert!(result_1.is_stats());
+    assert!(result_2.is_global());
+    assert!(result_2.is_stats());
+
+    println!("Score 1: {}", result_1.get_score());
+    println!("Score 2: {}", result_2.get_score());
     Ok(())
 }
 
