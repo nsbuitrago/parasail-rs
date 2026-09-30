@@ -5,13 +5,16 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug, From)]
 pub enum Error {
-    QueryIsEmpty,
+    EmptyQuery,
     ProfileFnLookupFailed {
         use_stats: bool,
         instruction_set: InstructionSet,
         solution_width: SolutionWidth,
     },
     NullProfile,
+    QueryTooLong {
+        length: usize,
+    },
     #[from]
     InteriorNulByte(NulError),
 }

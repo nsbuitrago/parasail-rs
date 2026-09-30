@@ -88,17 +88,11 @@ impl<'a> ProfileBuilder<'a> {
     pub fn build(&self) -> Result<Profile> {
         let create_profile = self.profile_creator_lookup();
 
-        let query_len = self.query.len() as c_int;
+        let query_len = convert_query_len_to_i32(self.query.len())?;
         let query_cstring = CString::new(self.query).map_err(Error::InteriorNulByte)?;
         let matrix = Arc::new(self.matrix.try_clone()?);
 
-        let profile = unsafe {
-            create_profile(
-                query_cstring.as_ptr(),
-                self.query.len() as c_int,
-                matrix.inner,
-            )
-        };
+        let profile = unsafe { create_profile(query_cstring.as_ptr(), query_len, matrix.inner) };
 
         if profile.is_null() {
             return Err(Error::NullProfile.into());
@@ -304,10 +298,10 @@ impl Profile {
     /// see `ProfileBuilder`.
     pub fn new(query_bytes: &[u8], with_stats: bool, matrix: &Matrix) -> Result<Self> {
         if query_bytes.is_empty() {
-            return Err(Error::QueryIsEmpty.into());
+            return Err(Error::EmptyQuery.into());
         }
 
-        let query_len = query_bytes.len() as i32;
+        let query_len = convert_query_len_to_i32(query_bytes.len())?;
         let query = CString::new(query_bytes).map_err(Error::InteriorNulByte)?;
         let matrix = Arc::new(matrix.try_clone()?);
 
@@ -333,10 +327,10 @@ impl Profile {
     }
 
     pub fn new_ssw(query_bytes: &[u8], matrix: &Matrix, score_size: i8) -> Result<Self> {
-        let query_len = query_bytes.len() as i32;
-        if query_len == 0 {
-            panic!("Query sequence has length 0.");
+        if query_bytes.is_empty() {
+            return Err(Error::EmptyQuery.into());
         }
+        let query_len = convert_query_len_to_i32(query_bytes.len())?;
         let query = CString::new(query_bytes).map_err(Error::InteriorNulByte)?;
         let matrix = Arc::new(matrix.try_clone()?);
 
@@ -357,6 +351,11 @@ impl Profile {
             query_len,
         })
     }
+}
+
+#[inline]
+fn convert_query_len_to_i32(length: usize) -> Result<c_int> {
+    i32::try_from(length).map_err(|_| Error::QueryTooLong { length }.into())
 }
 
 /// Default profile is a null pointer

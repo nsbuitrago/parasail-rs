@@ -33,6 +33,9 @@ pub enum Error {
         rows: i32,
     },
     EmptyPSSMQuery,
+    PSSMQueryTooLong {
+        length: usize,
+    },
 }
 
 impl Display for Error {

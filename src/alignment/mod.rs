@@ -310,8 +310,13 @@ impl Alignment {
     /// Get alignment strings and statistics
     pub fn print_traceback(&self, query: &[u8], reference: &[u8]) {
         if self.is_trace() {
-            let query_len = query.len() as i32;
-            let ref_len = reference.len() as i32;
+            let (Ok(query_len), Ok(ref_len)) = (
+                convert_seq_len_to_i32(query.len()),
+                convert_seq_len_to_i32(reference.len()),
+            ) else {
+                eprintln!("Cannot print traceback: sequence length exceeds i32::MAX.");
+                return;
+            };
             let query = CString::new(query).unwrap();
             let reference = CString::new(reference).unwrap();
             let query_str = CString::new("Query:").unwrap();
@@ -347,8 +352,8 @@ impl Alignment {
     /// Get alignment strings.
     pub fn get_traceback_strings(&self, query: &[u8], reference: &[u8]) -> Result<Traceback> {
         if self.is_trace() {
-            let query_len = query.len() as i32;
-            let ref_len = reference.len() as i32;
+            let query_len = convert_seq_len_to_i32(query.len())?;
+            let ref_len = convert_seq_len_to_i32(reference.len())?;
             let query = CString::new(query).map_err(Error::InteriorNulByte)?;
             let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
             let match_char = CString::new("|").map_err(Error::InteriorNulByte)?;
@@ -395,9 +400,9 @@ impl Alignment {
     /// Get CIGAR string.
     pub fn get_cigar(&self, query: &[u8], reference: &[u8]) -> Result<String> {
         if self.is_trace() {
-            let query_len = query.len() as i32;
+            let query_len = convert_seq_len_to_i32(query.len())?;
             let query = CString::new(query).map_err(Error::InteriorNulByte)?;
-            let ref_len = reference.len() as i32;
+            let ref_len = convert_seq_len_to_i32(reference.len())?;
             let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
             unsafe {
@@ -511,6 +516,11 @@ impl Alignment {
     pub fn is_trace(&self) -> bool {
         unsafe { parasail_result_is_trace(self.inner) != 0 }
     }
+}
+
+#[inline]
+fn convert_seq_len_to_i32(length: usize) -> Result<i32> {
+    i32::try_from(length).map_err(|_| Error::SeqTooLong { length }.into())
 }
 
 #[doc(hidden)]

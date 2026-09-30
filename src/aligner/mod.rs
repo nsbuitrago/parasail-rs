@@ -395,7 +395,7 @@ impl Aligner {
     /// If profile was set while building the aligner, pass None as the query
     /// sequence. Otherwise, wrap the query sequence in a Some variant (i.e. Some(query)).
     pub fn align(&self, query: Option<&[u8]>, reference: &[u8]) -> Result<Alignment> {
-        let ref_len = reference.len() as i32;
+        let ref_len = convert_seq_len_to_i32(reference.len())?;
         let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
         match self.parasail_fn {
@@ -405,7 +405,7 @@ impl Aligner {
                     "Query sequence is required for alignment without a profile."
                 );
                 let query_raw = query.unwrap();
-                let query_len = query_raw.len() as i32;
+                let query_len = convert_seq_len_to_i32(query_raw.len())?;
                 let query = CString::new(query_raw).map_err(Error::InteriorNulByte)?;
 
                 let result = unsafe {
@@ -466,10 +466,10 @@ impl Aligner {
     /// Note that this function is not vectorized. However, it may be useful
     /// for aligning large sequences.
     pub fn banded_nw(&self, query: &[u8], reference: &[u8]) -> Result<Alignment> {
-        let ref_len = reference.len() as i32;
+        let ref_len = convert_seq_len_to_i32(reference.len())?;
         let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
-        let query_len = query.len() as i32;
+        let query_len = convert_seq_len_to_i32(query.len())?;
         let query = CString::new(query).map_err(Error::InteriorNulByte)?;
 
         let bandwidth = if let Some(bandwidth) = self.bandwidth {
@@ -503,11 +503,11 @@ impl Aligner {
 
     /// Perform Striped Smith-Waterman local alignment using SSE2 instructions.
     pub fn ssw(&self, query: Option<&[u8]>, reference: &[u8]) -> Result<SSWResult> {
-        let ref_len = reference.len() as i32;
+        let ref_len = convert_seq_len_to_i32(reference.len())?;
         let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
         let result = if let Some(query_seq) = query {
-            let query_len = query_seq.len() as i32;
+            let query_len = convert_seq_len_to_i32(query_seq.len())?;
             let cquery = CString::new(query_seq).map_err(Error::InteriorNulByte)?;
 
             unsafe {
@@ -553,6 +553,11 @@ fn require_alignment_result(ptr: *mut parasail_result_t) -> Result<*mut parasail
     } else {
         Ok(ptr)
     }
+}
+
+#[inline]
+fn convert_seq_len_to_i32(length: usize) -> Result<i32> {
+    i32::try_from(length).map_err(|_| Error::SeqTooLong { length }.into())
 }
 
 #[doc(hidden)]

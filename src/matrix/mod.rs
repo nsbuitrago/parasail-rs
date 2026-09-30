@@ -232,12 +232,16 @@ impl Matrix {
         }
 
         let pssm_query_string = CString::new(pssm_query).map_err(Error::InteriorNulByte)?;
+        let pssm_query_len =
+            i32::try_from(pssm_query.len()).map_err(|_| Error::PSSMQueryTooLong {
+                length: pssm_query.len(),
+            })?;
 
         unsafe {
             let converted_matrix = parasail_matrix_convert_square_to_pssm(
                 self.inner,
                 pssm_query_string.as_ptr(),
-                pssm_query.len() as i32,
+                pssm_query_len,
             );
 
             if converted_matrix.is_null() {
