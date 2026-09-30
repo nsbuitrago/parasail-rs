@@ -144,7 +144,7 @@ impl Matrix {
             }
 
             Ok(Self {
-                inner: parasail_matrix_from_file(file.as_ptr()),
+                inner: matrix,
                 builtin: false,
             })
         }
@@ -168,6 +168,7 @@ impl Matrix {
                 alphabet_len: alphabet.len(),
                 rows,
             })?;
+
         if values.len() != expected {
             return Err(Error::InvalidPSSMValues {
                 alphabet_len: alphabet.len(),
@@ -204,24 +205,19 @@ impl Matrix {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn to_pssm(self, pssm_query: &[u8]) -> Result<Matrix> {
-        assert!(
-            !pssm_query.is_empty(),
-            "PSSM query sequence should not be empty."
-        );
+        if pssm_query.is_empty() {
+            return Err(Error::EmptyPSSMQuery.into());
+        }
+
+        if unsafe { (*self.inner).type_ } != 0 {
+            return Err(Error::NotSquare.into());
+        }
+
         let pssm_query_string = CString::new(pssm_query).map_err(Error::InteriorNulByte)?;
 
         unsafe {
-            let matrix = parasail_matrix_copy(self.inner);
-            if matrix.is_null() {
-                return Err(Error::NullMatrix.into());
-            }
-
-            if (*self.inner).type_ != 0 {
-                return Err(Error::NotSquare.into());
-            }
-
             let converted_matrix = parasail_matrix_convert_square_to_pssm(
-                matrix,
+                self.inner,
                 pssm_query_string.as_ptr(),
                 pssm_query.len() as i32,
             );
@@ -232,7 +228,7 @@ impl Matrix {
 
             Ok(Matrix {
                 inner: converted_matrix,
-                builtin: self.builtin,
+                builtin: false,
             })
         }
     }

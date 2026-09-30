@@ -26,6 +26,7 @@ pub enum Error {
         alphabet_len: usize,
         rows: i32,
     },
+    EmptyPSSMQuery,
 }
 
 impl Display for Error {

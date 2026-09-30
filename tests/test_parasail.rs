@@ -16,7 +16,7 @@ pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
     let blosum62 = Matrix::from("blosum62")?;
 
     // convert to PSSM
-    let _blosum62_pssm = blosum62.to_pssm(b"ACGT");
+    let _blosum62_pssm = blosum62.to_pssm(b"ACGT")?;
 
     // square matrix from file
     Matrix::from_file("./tests/square.txt")?;
@@ -71,6 +71,23 @@ pub fn pssm_construction_rejects_invalid_dimensions() {
     assert!(matches!(
         Matrix::create_pssm("A", vec![], -1),
         Err(ParasailError::Matrix(MatrixError::InvalidPSSMRows(-1)))
+    ));
+}
+
+#[test]
+pub fn pssm_conversion_validates_input() {
+    use parasail_rs::error::Error as ParasailError;
+    use parasail_rs::matrix::Error as MatrixError;
+
+    assert!(matches!(
+        Matrix::default().to_pssm(b""),
+        Err(ParasailError::Matrix(MatrixError::EmptyPSSMQuery))
+    ));
+
+    let pssm = Matrix::from("blosum62").unwrap().to_pssm(b"ACGT").unwrap();
+    assert!(matches!(
+        pssm.to_pssm(b"ACGT"),
+        Err(ParasailError::Matrix(MatrixError::NotSquare))
     ));
 }
 
