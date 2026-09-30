@@ -19,9 +19,9 @@ use libparasail_sys::{
     parasail_result_is_stats, parasail_result_is_stats_rowcol, parasail_result_is_stats_table,
     parasail_result_is_striped, parasail_result_is_sw, parasail_result_is_table,
     parasail_result_is_trace, parasail_result_ssw_free, parasail_result_ssw_t, parasail_result_t,
-    parasail_traceback_generic,
+    parasail_traceback_free, parasail_traceback_generic,
 };
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::slice;
 
 use crate::alignment::table::TracebackTable;
@@ -365,21 +365,26 @@ impl Alignment {
                     *mismatch_char.as_ptr(),
                 );
 
-                let query_traceback = CString::from_raw((*alignment).query)
-                    .into_string()
-                    .map_err(Error::InvalidUTF8String)?;
-                let comparison_traceback = CString::from_raw((*alignment).comp)
-                    .into_string()
-                    .map_err(Error::InvalidUTF8String)?;
-                let reference_traceback = CString::from_raw((*alignment).ref_)
-                    .into_string()
-                    .map_err(Error::InvalidUTF8String)?;
-
-                Ok(Traceback {
-                    query: query_traceback.clone(),
-                    comparison: comparison_traceback.clone(),
-                    reference: reference_traceback.clone(),
-                })
+                if alignment.is_null() {
+                    Err(Error::NoTrace(String::from("get_traceback_strings()")))?;
+                }
+                // The strings are allocated by parasail (malloc): copy them,
+                // then free the whole traceback with parasail's own function.
+                let copy = |p: *const std::os::raw::c_char| {
+                    CStr::from_ptr(p)
+                        .to_owned()
+                        .into_string()
+                        .map_err(Error::InvalidUTF8String)
+                };
+                let traceback = (|| {
+                    Ok::<_, Error>(Traceback {
+                        query: copy((*alignment).query)?,
+                        comparison: copy((*alignment).comp)?,
+                        reference: copy((*alignment).ref_)?,
+                    })
+                })();
+                parasail_traceback_free(alignment);
+                Ok(traceback?)
             }
         } else {
             Err(Error::NoTrace(String::from("get_traceback_strings()")))?
