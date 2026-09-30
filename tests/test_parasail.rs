@@ -687,6 +687,29 @@ pub fn local_with_profile() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+pub fn temp_matrix_with_profile() -> Result<(), Box<dyn std::error::Error>> {
+    let query = b"ACGT";
+    let ref_1 = b"ACGTAACGTACA";
+    let ref_2 = b"TGGCAAGGTAGA";
+
+    let use_stats = true;
+    let query_profile = Profile::new(query, use_stats, &Matrix::default())?;
+    let aligner = Aligner::new().profile(query_profile).build();
+
+    let result_1 = aligner.align(None, ref_1)?;
+    let result_2 = aligner.align(None, ref_2)?;
+
+    assert!(result_1.is_global());
+    assert!(result_1.is_stats());
+    assert!(result_2.is_global());
+    assert!(result_2.is_stats());
+
+    println!("Score 1: {}", result_1.get_score());
+    println!("Score 2: {}", result_2.get_score());
+    Ok(())
+}
+
+#[test]
 pub fn multithread_global_alignment() -> Result<(), Box<dyn std::error::Error>> {
     let query = b"ACGT";
     let refs = vec![b"ACGT", b"ACGT"];
