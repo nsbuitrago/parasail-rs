@@ -399,25 +399,38 @@ impl Alignment {
             let ref_len = reference.len() as i32;
             let reference = CString::new(reference).map_err(Error::InteriorNulByte)?;
 
-            let cigar: String;
             unsafe {
+                let cigar_encoded = parasail_result_get_cigar(
+                    self.inner,
+                    query.as_ptr(),
+                    query_len,
+                    reference.as_ptr(),
+                    ref_len,
+                    self.matrix,
+                );
+                if cigar_encoded.is_null() {
+                    return Err(Error::NullCigar.into());
+                }
+
                 let cigar_encoded = CigarString {
-                    inner: parasail_result_get_cigar(
-                        self.inner,
-                        query.as_ptr(),
-                        query_len,
-                        reference.as_ptr(),
-                        ref_len,
-                        self.matrix,
-                    ),
+                    inner: cigar_encoded,
                 };
 
-                cigar = CString::from_raw(parasail_cigar_decode(cigar_encoded.inner))
-                    .into_string()
-                    .map_err(Error::InvalidUTF8String)?;
-            }
+                let cigar_decoded = parasail_cigar_decode(cigar_encoded.inner);
+                if cigar_decoded.is_null() {
+                    return Err(Error::NullCigar.into());
+                }
 
-            Ok(cigar)
+                let cigar = CStr::from_ptr(cigar_decoded)
+                    .to_owned()
+                    .into_string()
+                    .map_err(Error::InvalidUTF8String);
+
+                // Free the decoded string with the C allocator that created it.
+                libc::free(cigar_decoded.cast());
+
+                Ok(cigar?)
+            }
         } else {
             Err(Error::NoTrace(String::from("get_cigar()")).into())
         }

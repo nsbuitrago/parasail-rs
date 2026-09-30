@@ -610,6 +610,7 @@ pub fn get_cigar() -> Result<(), Box<dyn std::error::Error>> {
     let result = aligner.align(Some(query), reference)?;
     let cigar_string = result.get_cigar(query, reference)?;
 
+    assert_eq!(cigar_string, "4=".to_string());
     println!("CIGAR: {}", cigar_string);
 
     Ok(())
