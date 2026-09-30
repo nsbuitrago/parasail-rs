@@ -2,6 +2,20 @@
 
 All notable changes will be documented here in reverse chronological order the headers \<VERSION\> - <YY.MM.DD>.
 
+## 0.9.2 - 2026.09.30
+
+## Fix
+
+- free traceback strings with parasail_traceback_free (#23)
+- keep query and matrix pointers held by parasail_profile_t valid
+- CIGAR allocation ownernship and cleanup
+- alignments retain matrix after an aligner is dropped
+- validate passed score values, alphabet, and number of rows for PSSM creation
+- remove duplicate from_file call, better validation in `Matrix::to_pssm`, remove extra extra matrix copying
+- validate null pointers, scores, alphabets for matrix creation and copy
+- require non-null pointer alignment result
+- return errors on bad length -> i32 casts
+
 ## 0.9.1 - 2026.05.06
 
 ## Fix
