@@ -421,6 +421,8 @@ impl Aligner {
                     )
                 };
 
+                let result = require_alignment_result(result)?;
+
                 Ok(Alignment {
                     inner: result,
                     matrix: self.matrix.clone(),
@@ -440,6 +442,8 @@ impl Aligner {
                         self.gap_extend,
                     )
                 };
+
+                let result = require_alignment_result(result)?;
 
                 let matrix = Arc::clone(
                     self.profile
@@ -487,6 +491,8 @@ impl Aligner {
             )
         };
 
+        let result = require_alignment_result(result)?;
+
         Ok(Alignment {
             inner: result,
             matrix: self.matrix.clone(),
@@ -532,7 +538,20 @@ impl Aligner {
             // }
         };
 
+        if result.is_null() {
+            return Err(Error::NullSSWResult.into());
+        }
+
         Ok(SSWResult { inner: result })
+    }
+}
+
+#[inline]
+fn require_alignment_result(ptr: *mut parasail_result_t) -> Result<*mut parasail_result_t> {
+    if ptr.is_null() {
+        return Err(Error::NullAlignmentResult.into());
+    } else {
+        Ok(ptr)
     }
 }
 

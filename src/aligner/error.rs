@@ -8,6 +8,8 @@ pub enum Error {
     InteriorNulByte(NulError),
     NoBandwidth,
     MissingProfileMatrix,
+    NullAlignmentResult,
+    NullSSWResult,
     #[from]
     Alignment(crate::alignment::Error),
 }
