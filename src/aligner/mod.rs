@@ -423,7 +423,7 @@ impl Aligner {
 
                 Ok(Alignment {
                     inner: result,
-                    matrix: **self.matrix,
+                    matrix: self.matrix.clone(),
                     query_len,
                     ref_len,
                 })
@@ -441,9 +441,16 @@ impl Aligner {
                     )
                 };
 
+                let matrix = Arc::clone(
+                    self.profile
+                        .matrix
+                        .as_ref()
+                        .ok_or(Error::MissingProfileMatrix)?,
+                );
+
                 Ok(Alignment {
                     inner: result,
-                    matrix: **self.matrix,
+                    matrix,
                     query_len: self.profile.query_len,
                     ref_len,
                 })
@@ -482,7 +489,7 @@ impl Aligner {
 
         Ok(Alignment {
             inner: result,
-            matrix: **self.matrix,
+            matrix: self.matrix.clone(),
             query_len,
             ref_len,
         })

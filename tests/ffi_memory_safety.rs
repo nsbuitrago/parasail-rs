@@ -1,8 +1,10 @@
-//! Regression tests for FFI allocation ownership.
+//! Regression tests for FFI memory safety.
 //!
 //! Parasail allocates traceback and decoded CIGAR strings with its C
 //! allocator. Rust must copy those strings, then release their original
 //! allocations with the matching C cleanup path rather than Rust's allocator.
+//! Alignment results must also retain their scoring matrix after the aligner
+//! that created them is dropped.
 //!
 //! This test binary installs a global allocator that tags every block it hands
 //! out. It aborts if Rust attempts to free a foreign allocation, such as a
@@ -76,4 +78,19 @@ fn decoded_cigar_does_not_use_rust_allocator() {
         let cigar = result.get_cigar(query, reference).unwrap();
         assert_eq!(cigar, "4=");
     }
+}
+
+#[test]
+fn alignment_retains_matrix_after_aligner_drop() {
+    // A mismatch forces Parasail's traceback generation to read the matrix.
+    let (query, reference) = (b"ACGT", b"AGGT");
+    let result = {
+        let aligner = Aligner::new().gap_open(5).gap_extend(2).use_trace().build();
+        aligner.align(Some(query), reference).unwrap()
+    };
+
+    let tb = result.get_traceback_strings(query, reference).unwrap();
+    assert_eq!(tb.query, "ACGT");
+    assert_eq!(tb.reference, "AGGT");
+    assert_eq!(tb.comparison, "| ||");
 }

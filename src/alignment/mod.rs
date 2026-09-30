@@ -4,14 +4,13 @@ mod error;
 pub mod table;
 
 use libparasail_sys::{
-    parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_matrix_t,
-    parasail_result_free, parasail_result_get_cigar, parasail_result_get_end_query,
-    parasail_result_get_end_ref, parasail_result_get_length, parasail_result_get_length_col,
-    parasail_result_get_length_row, parasail_result_get_length_table, parasail_result_get_matches,
-    parasail_result_get_matches_col, parasail_result_get_matches_row,
-    parasail_result_get_matches_table, parasail_result_get_score, parasail_result_get_score_col,
-    parasail_result_get_score_row, parasail_result_get_score_table, parasail_result_get_similar,
-    parasail_result_get_similar_col, parasail_result_get_similar_row,
+    parasail_cigar_decode, parasail_cigar_free, parasail_cigar_t, parasail_result_free,
+    parasail_result_get_cigar, parasail_result_get_end_query, parasail_result_get_end_ref,
+    parasail_result_get_length, parasail_result_get_length_col, parasail_result_get_length_row,
+    parasail_result_get_length_table, parasail_result_get_matches, parasail_result_get_matches_col,
+    parasail_result_get_matches_row, parasail_result_get_matches_table, parasail_result_get_score,
+    parasail_result_get_score_col, parasail_result_get_score_row, parasail_result_get_score_table,
+    parasail_result_get_similar, parasail_result_get_similar_col, parasail_result_get_similar_row,
     parasail_result_get_similar_table, parasail_result_get_trace_table,
     parasail_result_get_traceback, parasail_result_is_banded, parasail_result_is_blocked,
     parasail_result_is_diag, parasail_result_is_nw, parasail_result_is_rowcol,
@@ -23,8 +22,10 @@ use libparasail_sys::{
 };
 use std::ffi::{CStr, CString};
 use std::slice;
+use std::sync::Arc;
 
 use crate::alignment::table::TracebackTable;
+use crate::matrix::Matrix;
 use crate::prelude::Result;
 pub use error::Error;
 pub use table::Table;
@@ -54,7 +55,7 @@ pub struct Traceback {
 #[derive(Debug, Clone)]
 pub struct Alignment {
     pub(crate) inner: *mut parasail_result_t,
-    pub(crate) matrix: *const parasail_matrix_t,
+    pub(crate) matrix: Arc<Matrix>,
     pub(crate) query_len: i32,
     pub(crate) ref_len: i32,
 }
@@ -328,7 +329,7 @@ impl Alignment {
                     ref_len,
                     query_str.as_ptr(),
                     ref_str.as_ptr(),
-                    self.matrix,
+                    self.matrix.inner,
                     self.inner,
                     *match_char.as_ptr(),
                     *mismatch_char.as_ptr(),
@@ -359,7 +360,7 @@ impl Alignment {
                     query_len,
                     reference.as_ptr(),
                     ref_len,
-                    self.matrix,
+                    self.matrix.inner,
                     *match_char.as_ptr(),
                     *mismatch_char.as_ptr(),
                     *mismatch_char.as_ptr(),
@@ -406,7 +407,7 @@ impl Alignment {
                     query_len,
                     reference.as_ptr(),
                     ref_len,
-                    self.matrix,
+                    self.matrix.inner,
                 );
                 if cigar_encoded.is_null() {
                     return Err(Error::NullCigar.into());
