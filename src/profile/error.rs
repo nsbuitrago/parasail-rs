@@ -5,7 +5,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug, From)]
 pub enum Error {
-    EmptyQuery,
+    QueryIsEmpty,
     ProfileFnLookupFailed {
         use_stats: bool,
         instruction_set: InstructionSet,

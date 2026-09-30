@@ -298,7 +298,7 @@ impl Profile {
     /// see `ProfileBuilder`.
     pub fn new(query_bytes: &[u8], with_stats: bool, matrix: &Matrix) -> Result<Self> {
         if query_bytes.is_empty() {
-            return Err(Error::EmptyQuery.into());
+            return Err(Error::QueryIsEmpty.into());
         }
 
         let query_len = convert_query_len_to_i32(query_bytes.len())?;
@@ -328,7 +328,7 @@ impl Profile {
 
     pub fn new_ssw(query_bytes: &[u8], matrix: &Matrix, score_size: i8) -> Result<Self> {
         if query_bytes.is_empty() {
-            return Err(Error::EmptyQuery.into());
+            return Err(Error::QueryIsEmpty.into());
         }
         let query_len = convert_query_len_to_i32(query_bytes.len())?;
         let query = CString::new(query_bytes).map_err(Error::InteriorNulByte)?;
