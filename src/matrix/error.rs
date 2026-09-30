@@ -10,6 +10,12 @@ pub enum Error {
     InteriorNulByte(NulError),
     FailedLookup(String),
     FileNotFound(String),
+    EmptyAlphabet,
+    EmptyMatrixName,
+    InvalidScores {
+        match_score: i32,
+        mismatch_score: i32,
+    },
     NullMatrix,
     NotSquare,
     NotBuiltIn,

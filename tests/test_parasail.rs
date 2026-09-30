@@ -34,6 +34,35 @@ pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+pub fn matrix_construction_rejects_invalid_input() {
+    use parasail_rs::error::Error as ParasailError;
+    use parasail_rs::matrix::Error as MatrixError;
+
+    assert!(matches!(
+        Matrix::create(b"", 1, -1),
+        Err(ParasailError::Matrix(MatrixError::EmptyAlphabet))
+    ));
+    assert!(matches!(
+        Matrix::create(b"ACGT", -1, -1),
+        Err(ParasailError::Matrix(MatrixError::InvalidScores {
+            match_score: -1,
+            mismatch_score: -1,
+        }))
+    ));
+    assert!(matches!(
+        Matrix::create(b"ACGT", 1, 1),
+        Err(ParasailError::Matrix(MatrixError::InvalidScores {
+            match_score: 1,
+            mismatch_score: 1,
+        }))
+    ));
+    assert!(matches!(
+        Matrix::from(""),
+        Err(ParasailError::Matrix(MatrixError::EmptyMatrixName))
+    ));
+}
+
+#[test]
 pub fn pssm_construction_rejects_invalid_dimensions() {
     use parasail_rs::error::Error as ParasailError;
     use parasail_rs::matrix::Error as MatrixError;

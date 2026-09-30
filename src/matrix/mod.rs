@@ -32,14 +32,29 @@ impl Matrix {
     /// Note that match score should be a positive integer, while mismatch score
     /// should be a negative integer.
     pub fn create(alphabet: &[u8], match_score: i32, mismatch_score: i32) -> Result<Self> {
-        assert!(match_score >= 0 && mismatch_score <= 0, "Match score should be a positive integer and mismatch score should be a negative integer.");
-        assert!(!alphabet.is_empty(), "Alphabet should not be empty.");
+        if alphabet.is_empty() {
+            return Err(Error::EmptyAlphabet.into());
+        }
+
+        if match_score < 0 || mismatch_score > 0 {
+            return Err(Error::InvalidScores {
+                match_score,
+                mismatch_score,
+            }
+            .into());
+        }
+
         unsafe {
             let alphabet = &CString::new(alphabet).map_err(Error::InteriorNulByte)?;
-            Ok(Self {
-                inner: parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score),
-                builtin: false,
-            })
+            let inner = parasail_matrix_create(alphabet.as_ptr(), match_score, mismatch_score);
+            if inner.is_null() {
+                Err(Error::NullMatrix.into())
+            } else {
+                Ok(Self {
+                    inner,
+                    builtin: false,
+                })
+            }
         }
     }
 
@@ -55,7 +70,10 @@ impl Matrix {
     /// let blosum62 = Matrix::from("blosum62");
     /// ```
     pub fn from(matrix_name: &str) -> Result<Self> {
-        assert!(!matrix_name.is_empty(), "Matrix name should not be empty.");
+        if matrix_name.is_empty() {
+            return Err(Error::EmptyMatrixName.into());
+        }
+
         let matrix: *const parasail_matrix_t;
         unsafe {
             let matrix_name = CString::new(matrix_name).map_err(Error::InteriorNulByte)?;
@@ -262,6 +280,18 @@ impl Matrix {
 
         Ok(())
     }
+
+    pub(crate) fn try_clone(&self) -> Result<Self> {
+        let parasail_matrix_copy = unsafe { parasail_matrix_copy(**self) };
+        if parasail_matrix_copy.is_null() {
+            Err(Error::NullMatrix.into())
+        } else {
+            Ok(Self {
+                inner: parasail_matrix_copy,
+                builtin: false,
+            })
+        }
+    }
 }
 
 /// Default scoring matrix is an identity matrix for DNA sequences.
@@ -300,18 +330,8 @@ impl Deref for Matrix {
 #[doc(hidden)]
 impl Clone for Matrix {
     fn clone(&self) -> Self {
-        let parasail_matrix_copy = unsafe { parasail_matrix_copy(**self) };
-        if self.builtin {
-            Self {
-                inner: parasail_matrix_copy as *const parasail_matrix_t,
-                builtin: false, // for consistency with C interface
-            }
-        } else {
-            Self {
-                inner: parasail_matrix_copy,
-                builtin: false,
-            }
-        }
+        self.try_clone()
+            .expect("Parasail failed to copy the matrix")
     }
 }
 

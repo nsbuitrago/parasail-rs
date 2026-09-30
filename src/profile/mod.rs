@@ -90,7 +90,7 @@ impl<'a> ProfileBuilder<'a> {
 
         let query_len = self.query.len() as c_int;
         let query_cstring = CString::new(self.query).map_err(Error::InteriorNulByte)?;
-        let matrix = Arc::new(self.matrix.clone());
+        let matrix = Arc::new(self.matrix.try_clone()?);
 
         let profile = unsafe {
             create_profile(
@@ -309,7 +309,7 @@ impl Profile {
 
         let query_len = query_bytes.len() as i32;
         let query = CString::new(query_bytes).map_err(Error::InteriorNulByte)?;
-        let matrix = Arc::new(matrix.clone());
+        let matrix = Arc::new(matrix.try_clone()?);
 
         let profile = unsafe {
             if with_stats {
@@ -338,7 +338,7 @@ impl Profile {
             panic!("Query sequence has length 0.");
         }
         let query = CString::new(query_bytes).map_err(Error::InteriorNulByte)?;
-        let matrix = Arc::new(matrix.clone());
+        let matrix = Arc::new(matrix.try_clone()?);
 
         let profile = unsafe {
             let profile = parasail_ssw_init(query.as_ptr(), query_len, matrix.inner, score_size);
