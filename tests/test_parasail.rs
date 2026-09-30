@@ -26,11 +26,52 @@ pub fn matrix_construction() -> Result<(), Box<dyn std::error::Error>> {
 
     // PSSM
     let pssm_alphabet = "abcdef";
-    let values = vec![1, 2, 3, 4, 5, 6, 7, 8];
+    let values = vec![1; 12];
     let rows = 2;
     Matrix::create_pssm(pssm_alphabet, values, rows)?;
 
     Ok(())
+}
+
+#[test]
+pub fn pssm_construction_rejects_invalid_dimensions() {
+    use parasail_rs::error::Error as ParasailError;
+    use parasail_rs::matrix::Error as MatrixError;
+
+    let short_values = Matrix::create_pssm("abcdef", vec![1; 8], 2);
+    assert!(matches!(
+        short_values,
+        Err(ParasailError::Matrix(MatrixError::InvalidPSSMValues {
+            alphabet_len: 6,
+            rows: 2,
+            expected: 12,
+            actual: 8,
+        }))
+    ));
+
+    let long_values = Matrix::create_pssm("abcdef", vec![1; 13], 2);
+    assert!(matches!(
+        long_values,
+        Err(ParasailError::Matrix(MatrixError::InvalidPSSMValues {
+            alphabet_len: 6,
+            rows: 2,
+            expected: 12,
+            actual: 13,
+        }))
+    ));
+
+    assert!(matches!(
+        Matrix::create_pssm("", vec![], 1),
+        Err(ParasailError::Matrix(MatrixError::EmptyPSSMAlphabet))
+    ));
+    assert!(matches!(
+        Matrix::create_pssm("A", vec![], 0),
+        Err(ParasailError::Matrix(MatrixError::InvalidPSSMRows(0)))
+    ));
+    assert!(matches!(
+        Matrix::create_pssm("A", vec![], -1),
+        Err(ParasailError::Matrix(MatrixError::InvalidPSSMRows(-1)))
+    ));
 }
 
 #[test]

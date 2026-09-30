@@ -14,6 +14,18 @@ pub enum Error {
     NotSquare,
     NotBuiltIn,
     InvalidIndex(i32, i32),
+    InvalidPSSMValues {
+        alphabet_len: usize,
+        rows: i32,
+        expected: usize,
+        actual: usize,
+    },
+    EmptyPSSMAlphabet,
+    InvalidPSSMRows(i32),
+    PSSMTooLarge {
+        alphabet_len: usize,
+        rows: i32,
+    },
 }
 
 impl Display for Error {

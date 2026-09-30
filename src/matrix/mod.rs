@@ -152,6 +152,32 @@ impl Matrix {
 
     /// Create a new scoring matrix from a position-specific scoring matrix.
     pub fn create_pssm(alphabet: &str, values: Vec<i32>, rows: i32) -> Result<Self> {
+        if alphabet.is_empty() {
+            return Err(Error::EmptyPSSMAlphabet.into());
+        }
+
+        let rows_usize = usize::try_from(rows).map_err(|_| Error::InvalidPSSMRows(rows))?;
+        if rows_usize == 0 {
+            return Err(Error::InvalidPSSMRows(rows).into());
+        }
+
+        let expected = alphabet
+            .len()
+            .checked_mul(rows_usize)
+            .ok_or(Error::PSSMTooLarge {
+                alphabet_len: alphabet.len(),
+                rows,
+            })?;
+        if values.len() != expected {
+            return Err(Error::InvalidPSSMValues {
+                alphabet_len: alphabet.len(),
+                rows,
+                expected,
+                actual: values.len(),
+            }
+            .into());
+        }
+
         let alphabet = CString::new(alphabet).map_err(Error::InteriorNulByte)?;
 
         unsafe {
